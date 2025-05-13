@@ -1,7 +1,10 @@
 """
-Telegram module for ClearScan notifications and control.
+Telegram Module for ClearScan
+
+This module provides Telegram bot functionality for notifications and control.
 """
 
-from .bot import TelegramBot
+from .bot import ClearScanBot
+from .notifications import NotificationManager
 
-__all__ = ['TelegramBot'] 
+__all__ = ['ClearScanBot', 'NotificationManager'] 

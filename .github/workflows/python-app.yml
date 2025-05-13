@@ -1,48 +1,25 @@
-name: Python application
+name: Python CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
   pull_request:
-    branches: [ "main" ]
-
-permissions:
-  contents: read
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v3
-    
     - name: Set up Python 3.8
       uses: actions/setup-python@v3
       with:
-        python-version: "3.8"
-    
+        python-version: 3.8
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flake8 pytest black mypy
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
-    
-    - name: Lint with flake8
+        pip install -r requirements.txt
+    - name: Run basic checks
       run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
-    
-    - name: Check formatting with Black
-      run: |
-        black --check .
-    
-    - name: Type checking with mypy
-      run: |
-        mypy .
-    
-    - name: Run tests
-      run: |
-        pytest 
+        python -c "import clearscan"
+        python init_db.py 

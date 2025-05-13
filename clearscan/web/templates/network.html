@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}{{ network.name }}{% endblock %}
+
+{% block content %}
+<h1>{{ network.name }}</h1>
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Network Details</h5>
+                <dl class="row">
+                    <dt class="col-sm-3">IP Range</dt>
+                    <dd class="col-sm-9">{{ network.ip_range }}</dd>
+                    
+                    <dt class="col-sm-3">Status</dt>
+                    <dd class="col-sm-9">
+                        {% if network.is_active %}
+                        <span class="badge bg-success">Active</span>
+                        {% else %}
+                        <span class="badge bg-danger">Inactive</span>
+                        {% endif %}
+                    </dd>
+                    
+                    <dt class="col-sm-3">Scan Interval</dt>
+                    <dd class="col-sm-9">{{ network.scan_interval // 60 }} minutes</dd>
+                    
+                    <dt class="col-sm-3">Description</dt>
+                    <dd class="col-sm-9">{{ network.description or 'No description' }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2>Recent Scans</h2>
+<div class="row">
+    <div class="col-md-12">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Status</th>
+                        <th>Duration</th>
+                        <th>Hosts Found</th>
+                        <th>Changes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for result in results %}
+                    <tr>
+                        <td>{{ result.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        <td>
+                            {% if result.status == 'completed' %}
+                            <span class="badge bg-success">Completed</span>
+                            {% else %}
+                            <span class="badge bg-danger">Failed</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ "%.2f"|format(result.scan_duration or 0) }}s</td>
+                        <td>{{ result.hosts|length }}</td>
+                        <td>
+                            {% if result.changes %}
+                            <span class="badge bg-warning">{{ result.changes|length }} changes</span>
+                            {% else %}
+                            <span class="badge bg-secondary">No changes</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Networks{% endblock %}
+
+{% block content %}
+<h1>Networks</h1>
+<div class="row">
+    <div class="col-md-12">
+        <a href="{{ url_for('add_network') }}" class="btn btn-primary mb-3">Add Network</a>
+        
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>IP Range</th>
+                        <th>Status</th>
+                        <th>Scan Interval</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for network in networks %}
+                    <tr>
+                        <td>{{ network.name }}</td>
+                        <td>{{ network.ip_range }}</td>
+                        <td>
+                            {% if network.is_active %}
+                            <span class="badge bg-success">Active</span>
+                            {% else %}
+                            <span class="badge bg-danger">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ network.scan_interval // 60 }} minutes</td>
+                        <td>
+                            <a href="{{ url_for('network_details', network_id=network.id) }}" 
+                               class="btn btn-sm btn-info">Details</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %} 

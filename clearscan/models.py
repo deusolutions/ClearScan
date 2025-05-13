@@ -1,145 +1,76 @@
 """
-Database models for ClearScan
+Core database models for ClearScan
+Contains only essential models for basic network scanning functionality
 """
 
 from datetime import datetime
-from typing import List, Optional
-
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, JSON, Text, Float
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Text, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
 Base = declarative_base()
 
 class User(Base):
-    """Модель пользователя."""
+    """Basic user model for authentication."""
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True)
     username = Column(String(50), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
-    email = Column(String(100), unique=True)
-    is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime)
-    failed_attempts = Column(Integer, default=0)
-    is_locked = Column(Boolean, default=False)
-    locked_until = Column(DateTime)
 
 class Network(Base):
-    """Модель сети для сканирования."""
+    """Network to be scanned."""
     __tablename__ = "networks"
 
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False)
-    ip_range = Column(String(50), nullable=False)
+    ip_range = Column(String(50), nullable=False)  # Example: "192.168.1.0/24"
     description = Column(String(255))
     is_active = Column(Boolean, default=True)
+    scan_interval = Column(Integer, default=3600)  # Scan interval in seconds
     created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    scan_interval = Column(Integer, default=3600)  # интервал сканирования в секундах
-
-    # Связи
-    scan_results = relationship("ScanResult", back_populates="network")
-    changes = relationship("NetworkChange", back_populates="network")
-    telegram_chats = relationship("TelegramChat", back_populates="network")
-    ports = relationship("Port", back_populates="network")
-
-class Port(Base):
-    """Модель портов для сканирования."""
-    __tablename__ = "ports"
-
-    id = Column(Integer, primary_key=True)
-    network_id = Column(Integer, ForeignKey("networks.id"))
-    port_number = Column(Integer, nullable=False)
-    protocol = Column(String(10), default="tcp")
-    description = Column(String(255))
-    is_active = Column(Boolean, default=True)
-
-    network = relationship("Network", back_populates="ports")
+    
+    # Relationships
+    scan_results = relationship("ScanResult", back_populates="network", cascade="all, delete-orphan")
+    telegram_chats = relationship("TelegramChat", back_populates="network", cascade="all, delete-orphan")
 
 class ScanResult(Base):
-    """Модель результатов сканирования."""
+    """Network scan results."""
     __tablename__ = "scan_results"
 
     id = Column(Integer, primary_key=True)
     network_id = Column(Integer, ForeignKey("networks.id"), nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
-    hosts = Column(Text, nullable=False)  # JSON список хостов
-    host_details = Column(Text, nullable=False)  # JSON с деталями хостов
-    status = Column(String(20), default='completed')
+    hosts = Column(Text, nullable=False)  # JSON list of hosts
+    host_details = Column(Text, nullable=False)  # JSON with host details
+    status = Column(String(20), default='completed')  # completed, failed
     error_message = Column(String(255))
-    scan_duration = Column(Float)  # Длительность сканирования в секундах
+    scan_duration = Column(Float)  # Scan duration in seconds
     
     network = relationship("Network", back_populates="scan_results")
-    changes_as_current = relationship("NetworkChange", back_populates="scan_result", foreign_keys="NetworkChange.scan_id")
-    changes_as_previous = relationship("NetworkChange", back_populates="previous_scan", foreign_keys="NetworkChange.previous_scan_id")
+    changes = relationship("NetworkChange", back_populates="scan_result")
 
 class NetworkChange(Base):
-    """Модель изменений в сети."""
+    """Network changes detected between scans."""
     __tablename__ = "network_changes"
     
     id = Column(Integer, primary_key=True)
     network_id = Column(Integer, ForeignKey("networks.id"), nullable=False)
     scan_id = Column(Integer, ForeignKey("scan_results.id"), nullable=False)
-    previous_scan_id = Column(Integer, ForeignKey("scan_results.id"), nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
     severity = Column(String(20), nullable=False)  # critical, high, medium, low, info
-    new_hosts = Column(Text)  # JSON список новых хостов
-    removed_hosts = Column(Text)  # JSON список удаленных хостов
-    changed_hosts = Column(Text)  # JSON с изменениями на хостах
-    message = Column(Text)  # Человекочитаемое описание изменений
+    changes_detected = Column(Text, nullable=False)  # JSON with detected changes
+    message = Column(Text)  # Human-readable change description
+    notified = Column(Boolean, default=False)  # Whether Telegram notification was sent
     
-    network = relationship("Network", back_populates="changes")
-    scan_result = relationship("ScanResult", back_populates="changes_as_current", foreign_keys=[scan_id])
-    previous_scan = relationship("ScanResult", back_populates="changes_as_previous", foreign_keys=[previous_scan_id])
-    notifications = relationship("ChangeNotification", back_populates="change")
-
-class ChangeNotification(Base):
-    """Модель уведомлений об изменениях."""
-    __tablename__ = "change_notifications"
-    
-    id = Column(Integer, primary_key=True)
-    change_id = Column(Integer, ForeignKey("network_changes.id"), nullable=False)
-    timestamp = Column(DateTime, default=datetime.utcnow)
-    notification_type = Column(String(20), default='telegram')  # telegram, email, etc.
-    status = Column(String(20), default='pending')  # pending, sent, failed
-    error_message = Column(String(255))
-    severity = Column(String(20), nullable=False)  # critical, high, medium, low, info
-    message = Column(Text)  # Текст уведомления
-    
-    change = relationship("NetworkChange", back_populates="notifications")
-
-class Configuration(Base):
-    """Модель конфигурации."""
-    __tablename__ = "configurations"
-
-    id = Column(Integer, primary_key=True)
-    key = Column(String(100), unique=True, nullable=False)
-    value = Column(String(255))
-    description = Column(String(255))
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = Column(Integer, ForeignKey("users.id"))
-    updated_by = Column(Integer, ForeignKey("users.id"))
-
-class ConfigurationHistory(Base):
-    """Модель истории изменений конфигурации."""
-    __tablename__ = "configuration_history"
-
-    id = Column(Integer, primary_key=True)
-    config_key = Column(String(50), nullable=False)
-    old_value = Column(JSON)
-    new_value = Column(JSON)
-    changed_at = Column(DateTime, default=datetime.utcnow)
-    changed_by_id = Column(Integer, ForeignKey("users.id"))
-    change_reason = Column(String(255))
-
-    changed_by = relationship("User")
+    network = relationship("Network")
+    scan_result = relationship("ScanResult", back_populates="changes")
 
 class TelegramChat(Base):
-    """Модель Telegram чатов."""
+    """Telegram chat settings for notifications."""
     __tablename__ = "telegram_chats"
     
     id = Column(Integer, primary_key=True)
@@ -149,7 +80,4 @@ class TelegramChat(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     last_notification = Column(DateTime)
     
-    network = relationship("Network", back_populates="telegram_chats")
-    
-    class Config:
-        orm_mode = True 
+    network = relationship("Network", back_populates="telegram_chats") 

@@ -7,6 +7,7 @@ This module handles notification management and delivery for the Telegram bot.
 from typing import List, Dict, Optional
 from datetime import datetime
 import asyncio
+import json
 import logging
 from sqlalchemy.orm import Session
 from ..models import Network, NetworkChange, ChangeNotification, TelegramChat
@@ -49,56 +50,74 @@ class NotificationManager:
         # Send notifications
         for chat in chats:
             try:
-                await self.bot.send_notification(chat.chat_id, notification)
+                await self.bot.send_notification(str(chat.chat_id), notification)
+                chat.last_notification = datetime.utcnow()
                 self.logger.info(f"Notification sent to chat {chat.chat_id}")
             except Exception as e:
                 self.logger.error(f"Failed to send notification to chat {chat.chat_id}: {e}")
                 
+        self.db_session.commit()
+                
     def _format_change_message(self, change: NetworkChange) -> str:
         """Format change details into a human-readable message."""
-        network = self.db_session.query(Network).get(change.network_id)
+        network = self.db_session.get(Network, change.network_id)
         
         message_parts = [
-            f"Network: {network.name} ({network.ip_range})",
-            f"Scan Time: {change.timestamp}",
+            f"🔍 <b>Изменения в сети {network.name}</b>",
+            f"IP диапазон: {network.ip_range}",
+            f"Время сканирования: {change.timestamp.strftime('%Y-%m-%d %H:%M:%S')}",
             ""
         ]
         
         # Add change details
-        if change.new_hosts:
+        new_hosts = json.loads(change.new_hosts)
+        removed_hosts = json.loads(change.removed_hosts)
+        changed_hosts = json.loads(change.changed_hosts)
+        
+        # Add summary counts
+        total_changes = len(new_hosts) + len(removed_hosts) + len(changed_hosts)
+        message_parts.append(f"Всего изменений: {total_changes}")
+        
+        if new_hosts:
             message_parts.extend([
-                "🆕 New Hosts:",
-                ", ".join(sorted(change.new_hosts)),
-                ""
+                "",
+                "🆕 <b>Новые хосты:</b>",
+                ", ".join(sorted(new_hosts))
             ])
             
-        if change.removed_hosts:
+        if removed_hosts:
             message_parts.extend([
-                "❌ Removed Hosts:",
-                ", ".join(sorted(change.removed_hosts)),
-                ""
+                "",
+                "❌ <b>Недоступные хосты:</b>",
+                ", ".join(sorted(removed_hosts))
             ])
             
-        if change.changed_hosts:
-            message_parts.append("📝 Changed Hosts:")
-            for host, details in sorted(change.changed_hosts.items()):
+        if changed_hosts:
+            message_parts.extend([
+                "",
+                "📝 <b>Измененные хосты:</b>"
+            ])
+            for host, details in sorted(changed_hosts.items()):
                 changes = []
                 if 'new_ports' in details:
-                    changes.append(f"New ports: {', '.join(map(str, sorted(details['new_ports'])))}")
+                    changes.append(f"новые порты: {', '.join(map(str, sorted(details['new_ports'])))}")
                 if 'closed_ports' in details:
-                    changes.append(f"Closed ports: {', '.join(map(str, sorted(details['closed_ports'])))}")
+                    changes.append(f"закрытые порты: {', '.join(map(str, sorted(details['closed_ports'])))}")
                 if 'service_changes' in details:
                     for port, service_change in sorted(details['service_changes'].items()):
                         if 'added' in service_change:
-                            changes.append(f"New service on port {port}: {service_change['added']}")
+                            changes.append(f"новый сервис на порту {port}: {service_change['added']}")
                         elif 'removed' in service_change:
-                            changes.append(f"Removed service on port {port}: {service_change['removed']}")
+                            changes.append(f"удален сервис на порту {port}: {service_change['removed']}")
                         else:
                             changes.append(
-                                f"Service changed on port {port}: "
+                                f"изменен сервис на порту {port}: "
                                 f"{service_change['old']} → {service_change['new']}"
                             )
-                message_parts.extend([f"  {host}:", "    - " + "\n    - ".join(changes), ""])
+                message_parts.extend([
+                    f"\n<b>{host}:</b>",
+                    "• " + "\n• ".join(changes)
+                ])
                 
         return "\n".join(message_parts)
         
@@ -115,6 +134,7 @@ class NotificationManager:
             timestamp=datetime.utcnow(),
             message=message
         )
+        self.db_session.add(notification)
         
         # Get all active chats
         chats = self.db_session.query(TelegramChat).filter_by(is_active=True).all()
@@ -122,10 +142,13 @@ class NotificationManager:
         # Send notifications
         for chat in chats:
             try:
-                await self.bot.send_notification(chat.chat_id, notification)
+                await self.bot.send_notification(str(chat.chat_id), notification)
+                chat.last_notification = datetime.utcnow()
                 self.logger.info(f"System notification sent to chat {chat.chat_id}")
             except Exception as e:
                 self.logger.error(f"Failed to send system notification to chat {chat.chat_id}: {e}")
+                
+        self.db_session.commit()
                 
     def subscribe_chat(self, chat_id: int, network_id: int) -> bool:
         """
@@ -139,12 +162,27 @@ class NotificationManager:
             bool: True if subscription was successful, False otherwise
         """
         try:
-            chat = TelegramChat(
+            # Check if subscription already exists
+            existing = self.db_session.query(TelegramChat).filter_by(
                 chat_id=chat_id,
-                network_id=network_id,
-                is_active=True
-            )
-            self.db_session.add(chat)
+                network_id=network_id
+            ).first()
+            
+            if existing:
+                if existing.is_active:
+                    return True  # Already subscribed
+                else:
+                    existing.is_active = True
+                    existing.created_at = datetime.utcnow()
+            else:
+                chat = TelegramChat(
+                    chat_id=chat_id,
+                    network_id=network_id,
+                    is_active=True,
+                    created_at=datetime.utcnow()
+                )
+                self.db_session.add(chat)
+                
             self.db_session.commit()
             return True
         except Exception as e:
@@ -166,7 +204,8 @@ class NotificationManager:
         try:
             chat = self.db_session.query(TelegramChat).filter_by(
                 chat_id=chat_id,
-                network_id=network_id
+                network_id=network_id,
+                is_active=True
             ).first()
             
             if chat:
@@ -177,4 +216,55 @@ class NotificationManager:
         except Exception as e:
             self.logger.error(f"Failed to unsubscribe chat {chat_id} from network {network_id}: {e}")
             self.db_session.rollback()
-            return False 
+            return False
+
+    async def process_pending_notifications(self):
+        """Process all pending notifications."""
+        try:
+            # Get all pending notifications
+            pending = self.db_session.query(ChangeNotification).filter_by(
+                status='pending'
+            ).order_by(ChangeNotification.timestamp.asc()).all()
+
+            for notification in pending:
+                try:
+                    # Get all active chats for the network
+                    if notification.change:
+                        chats = self.db_session.query(TelegramChat).filter_by(
+                            network_id=notification.change.network_id,
+                            is_active=True
+                        ).all()
+                    else:
+                        # For system notifications, get all active chats
+                        chats = self.db_session.query(TelegramChat).filter_by(
+                            is_active=True
+                        ).all()
+
+                    # Send notification to each chat
+                    for chat in chats:
+                        try:
+                            success = await self.bot.send_notification(
+                                str(chat.chat_id),
+                                notification
+                            )
+                            if success:
+                                chat.last_notification = datetime.utcnow()
+                                self.logger.info(f"Notification sent to chat {chat.chat_id}")
+                            else:
+                                self.logger.error(f"Failed to send notification to chat {chat.chat_id}")
+                        except Exception as e:
+                            self.logger.error(f"Error sending notification to chat {chat.chat_id}: {e}")
+
+                    # Update notification status
+                    notification.status = 'sent'
+                    self.db_session.commit()
+
+                except Exception as e:
+                    self.logger.error(f"Error processing notification {notification.id}: {e}")
+                    notification.status = 'failed'
+                    notification.error_message = str(e)
+                    self.db_session.commit()
+
+        except Exception as e:
+            self.logger.error(f"Error processing pending notifications: {e}")
+            self.db_session.rollback() 
