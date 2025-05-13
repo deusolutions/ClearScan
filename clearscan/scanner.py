@@ -1,137 +1,152 @@
+"""
+Network Scanner Module
+
+This module handles network scanning using nmap and processes results.
+"""
+
+import asyncio
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional
-
+from typing import List, Dict, Optional
+import json
 import nmap
 from sqlalchemy.orm import Session
 
-from .models import Network, Port, ScanResult, Configuration
+from .models import Network, ScanResult, NetworkChange
+from .comparator import ResultsComparator
 
 logger = logging.getLogger(__name__)
 
 class NetworkScanner:
-    def __init__(self, session: Session):
-        self.session = session
-        self.nm = nmap.PortScanner()
-        self._load_config()
-
-    def _load_config(self) -> None:
-        """Load scanner configuration from database."""
-        configs = self.session.query(Configuration).filter(
-            Configuration.key.in_([
-                'scanner.timeout',
-                'scanner.max_retries'
-            ])
-        ).all()
-        
-        self.config = {
-            'timeout': 300,  # default timeout
-            'max_retries': 3,  # default retries
-        }
-        
-        for conf in configs:
-            if conf.key == 'scanner.timeout':
-                self.config['timeout'] = conf.value
-            elif conf.key == 'scanner.max_retries':
-                self.config['max_retries'] = conf.value
-
-    def scan_network(self, network: Network) -> ScanResult:
+    def __init__(self, session: Session, batch_size: int = 1000, timeout: int = 300):
         """
-        Scan a network and its configured ports.
+        Initialize network scanner.
         
         Args:
-            network: Network model instance to scan
-            
-        Returns:
-            ScanResult instance with scan results
+            session: Database session
+            batch_size: Number of hosts to scan in each batch
+            timeout: Scan timeout in seconds
         """
-        logger.info(f"Starting scan of network {network.cidr}")
+        self.session = session
+        self.batch_size = batch_size
+        self.timeout = timeout
+        self.scanner = nmap.PortScanner()
+        self.comparator = ResultsComparator(session)
+
+    async def scan_all_networks(self) -> List[NetworkChange]:
+        """
+        Scan all configured networks.
         
-        # Get active ports for this network
-        active_ports = [p.port_number for p in network.ports if p.is_active]
-        if not active_ports:
-            logger.warning(f"No active ports configured for network {network.cidr}")
-            return self._create_scan_result(network, {}, "failed", "No ports configured")
-
-        try:
-            # Convert ports list to nmap format
-            ports_str = ",".join(map(str, active_ports))
-            
-            # Run the scan
-            scan_result = self.nm.scan(
-                hosts=network.cidr,
-                ports=ports_str,
-                arguments=f"-sS -n --max-retries {self.config['max_retries']} --host-timeout {self.config['timeout']}s"
-            )
-
-            # Process results
-            results = self._process_scan_results(scan_result)
-            
-            # Create and return scan result
-            return self._create_scan_result(network, results, "success")
-
-        except Exception as e:
-            logger.error(f"Error scanning network {network.cidr}: {str(e)}")
-            return self._create_scan_result(network, {}, "failed", str(e))
-
-    def _process_scan_results(self, scan_result: Dict) -> Dict:
-        """Process nmap scan results into our format."""
-        results = {}
-        
-        if not scan_result or 'scan' not in scan_result:
-            return results
-
-        for host, host_data in scan_result['scan'].items():
-            if 'tcp' in host_data:
-                results[host] = {
-                    'status': host_data.get('status', {}).get('state', 'unknown'),
-                    'hostname': host_data.get('hostnames', [{'name': ''}])[0]['name'],
-                    'ports': {}
-                }
-                
-                for port, port_data in host_data['tcp'].items():
-                    results[host]['ports'][str(port)] = {
-                        'state': port_data['state'],
-                        'service': port_data['name'],
-                        'version': port_data.get('version', ''),
-                    }
-
-        return results
-
-    def _create_scan_result(
-        self,
-        network: Network,
-        results: Dict,
-        status: str,
-        error_message: Optional[str] = None
-    ) -> ScanResult:
-        """Create and save a scan result."""
-        scan_result = ScanResult(
-            network_id=network.id,
-            scan_time=datetime.utcnow(),
-            results=results,
-            status=status,
-            error_message=error_message
-        )
-        
-        self.session.add(scan_result)
-        self.session.commit()
-        
-        return scan_result
-
-    def scan_all_active_networks(self) -> List[ScanResult]:
-        """Scan all active networks."""
+        Returns:
+            List of NetworkChange objects for detected changes
+        """
+        changes = []
         networks = self.session.query(Network).filter_by(is_active=True).all()
-        results = []
         
         for network in networks:
             try:
-                result = self.scan_network(network)
-                results.append(result)
+                logger.info(f"Сканирование сети {network.name} ({network.ip_range})")
+                scan_result = await self._scan_network(network)
+                
+                if scan_result:
+                    # Получаем предыдущий результат сканирования
+                    prev_scan = self.session.query(ScanResult).filter_by(
+                        network_id=network.id
+                    ).order_by(ScanResult.timestamp.desc()).first()
+                    
+                    # Сравниваем результаты если есть предыдущее сканирование
+                    if prev_scan:
+                        change = self.comparator.compare_scans(prev_scan, scan_result)
+                        if change:
+                            changes.append(change)
+                            self.session.add(change)
+                    
+                    self.session.add(scan_result)
+                    self.session.commit()
+                    
             except Exception as e:
-                logger.error(f"Error scanning network {network.cidr}: {str(e)}")
-                results.append(
-                    self._create_scan_result(network, {}, "failed", str(e))
-                )
+                logger.error(f"Ошибка сканирования сети {network.name}: {e}")
+                continue
+                
+        return changes
+
+    async def _scan_network(self, network: Network) -> Optional[ScanResult]:
+        """
+        Scan a single network.
         
+        Args:
+            network: Network to scan
+            
+        Returns:
+            ScanResult object if successful, None otherwise
+        """
+        try:
+            # Запуск сканирования nmap
+            arguments = f"-sS -sV -p- --min-rate 1000 -T4 --max-retries 2 --host-timeout {self.timeout}s"
+            self.scanner.scan(hosts=network.ip_range, arguments=arguments)
+            
+            # Обработка результатов
+            hosts = []
+            host_details = {}
+            
+            for host in self.scanner.all_hosts():
+                hosts.append(host)
+                host_info = {
+                    'status': self.scanner[host].state(),
+                    'ports': [],
+                    'services': {}
+                }
+                
+                # Сбор информации о портах и сервисах
+                for proto in self.scanner[host].all_protocols():
+                    ports = sorted(self.scanner[host][proto].keys())
+                    for port in ports:
+                        port_info = self.scanner[host][proto][port]
+                        host_info['ports'].append(port)
+                        host_info['services'][str(port)] = {
+                            'name': port_info['name'],
+                            'product': port_info.get('product', ''),
+                            'version': port_info.get('version', ''),
+                            'state': port_info['state']
+                        }
+                
+                host_details[host] = host_info
+            
+            # Создание записи результата
+            scan_result = ScanResult(
+                network_id=network.id,
+                timestamp=datetime.utcnow(),
+                hosts=json.dumps(hosts),
+                host_details=json.dumps(host_details)
+            )
+            
+            return scan_result
+            
+        except Exception as e:
+            logger.error(f"Ошибка сканирования {network.ip_range}: {e}")
+            return None
+
+    async def scan_specific_hosts(self, hosts: List[str]) -> Dict:
+        """
+        Scan specific hosts.
+        
+        Args:
+            hosts: List of host IP addresses to scan
+            
+        Returns:
+            Dictionary with scan results
+        """
+        results = {}
+        for host in hosts:
+            try:
+                self.scanner.scan(hosts=host, arguments="-sS -sV -p-")
+                if self.scanner.all_hosts():
+                    results[host] = {
+                        'status': self.scanner[host].state(),
+                        'ports': list(self.scanner[host]['tcp'].keys()) if 'tcp' in self.scanner[host] else []
+                    }
+            except Exception as e:
+                logger.error(f"Ошибка сканирования хоста {host}: {e}")
+                results[host] = {'error': str(e)}
+                
         return results 
