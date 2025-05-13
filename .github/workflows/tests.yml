@@ -1,0 +1,83 @@
+name: ClearScan Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+
+    services:
+      # Add PostgreSQL service if needed
+      # postgres:
+      #   image: postgres:13
+      #   env:
+      #     POSTGRES_PASSWORD: postgres
+      #     POSTGRES_DB: test_clearscan
+      #   ports:
+      #     - 5432:5432
+      #   options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y nmap
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+        pip install pytest-cov pytest-asyncio pytest-timeout
+
+    - name: Run unit tests
+      run: |
+        pytest tests/ \
+          --cov=clearscan \
+          --cov-report=xml \
+          --cov-report=term \
+          --junitxml=test-results.xml \
+          -v
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: true
+
+    - name: Check code style
+      run: |
+        pip install black flake8 isort
+        black --check clearscan tests
+        flake8 clearscan tests
+        isort --check-only clearscan tests
+
+    - name: Run security checks
+      run: |
+        pip install bandit safety
+        bandit -r clearscan/
+        safety check
+
+    - name: Archive test results
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results-${{ matrix.python-version }}
+        path: |
+          test-results.xml
+          coverage.xml
+      if: always()  # Archive even if tests fail 
