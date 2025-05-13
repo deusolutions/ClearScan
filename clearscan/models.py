@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, JSON, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -23,17 +23,14 @@ class Network(Base):
     __tablename__ = "networks"
 
     id = Column(Integer, primary_key=True)
-    cidr = Column(String(50), nullable=False)
-    description = Column(String(255))
+    name = Column(String(100), nullable=False)
+    ip_range = Column(String(100), nullable=False)
     scan_interval = Column(Integer, default=3600)  # in seconds
-    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, onupdate=datetime.utcnow)
-    created_by_id = Column(Integer, ForeignKey("users.id"))
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    ports = relationship("Port", back_populates="network")
-    scan_results = relationship("ScanResult", back_populates="network")
-    created_by = relationship("User")
+    scans = relationship("ScanResult", back_populates="network")
+    changes = relationship("NetworkChange", back_populates="network")
 
 class Port(Base):
     __tablename__ = "ports"
@@ -51,27 +48,66 @@ class ScanResult(Base):
     __tablename__ = "scan_results"
 
     id = Column(Integer, primary_key=True)
-    network_id = Column(Integer, ForeignKey("networks.id"))
-    scan_time = Column(DateTime, default=datetime.utcnow)
-    results = Column(JSON)
-    status = Column(String(20))  # success, failed, partial
-    error_message = Column(String(255))
+    network_id = Column(Integer, ForeignKey("networks.id"), nullable=False)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    hosts = Column(Text, nullable=False)  # JSON string of host IPs
+    host_details = Column(Text, nullable=False)  # JSON string of detailed host info
+    scan_duration = Column(Integer)  # in seconds
+    
+    network = relationship("Network", back_populates="scans")
+    changes_as_previous = relationship("NetworkChange", 
+                                     foreign_keys="NetworkChange.previous_scan_id",
+                                     back_populates="previous_scan")
+    changes_as_current = relationship("NetworkChange", 
+                                    foreign_keys="NetworkChange.scan_id",
+                                    back_populates="current_scan")
 
-    network = relationship("Network", back_populates="scan_results")
+class NetworkChange(Base):
+    __tablename__ = "network_changes"
+    
+    id = Column(Integer, primary_key=True)
+    network_id = Column(Integer, ForeignKey("networks.id"), nullable=False)
+    scan_id = Column(Integer, ForeignKey("scan_results.id"), nullable=False)
+    previous_scan_id = Column(Integer, ForeignKey("scan_results.id"), nullable=False)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    severity = Column(String(20), nullable=False)  # high, medium, low, info
+    new_hosts = Column(Text)  # JSON string of new hosts
+    removed_hosts = Column(Text)  # JSON string of removed hosts
+    changed_hosts = Column(Text)  # JSON string of changed hosts and their details
+    
+    network = relationship("Network", back_populates="changes")
+    current_scan = relationship("ScanResult", 
+                              foreign_keys=[scan_id],
+                              back_populates="changes_as_current")
+    previous_scan = relationship("ScanResult", 
+                               foreign_keys=[previous_scan_id],
+                               back_populates="changes_as_previous")
+    notifications = relationship("ChangeNotification", back_populates="change")
+
+class ChangeNotification(Base):
+    __tablename__ = "change_notifications"
+    
+    id = Column(Integer, primary_key=True)
+    change_id = Column(Integer, ForeignKey("network_changes.id"), nullable=False)
+    severity = Column(String(20), nullable=False)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    message = Column(Text, nullable=False)
+    sent = Column(DateTime)  # When the notification was sent
+    delivery_status = Column(String(50))  # success, failed, pending
+    
+    change = relationship("NetworkChange", back_populates="notifications")
 
 class Configuration(Base):
     __tablename__ = "configurations"
 
     id = Column(Integer, primary_key=True)
-    key = Column(String(50), unique=True, nullable=False)
-    value = Column(JSON)
-    description = Column(String(255))
-    is_encrypted = Column(Boolean, default=False)
+    key = Column(String(100), unique=True, nullable=False)
+    value = Column(Text, nullable=False)
+    description = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, onupdate=datetime.utcnow)
-    updated_by_id = Column(Integer, ForeignKey("users.id"))
-
-    updated_by = relationship("User")
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = Column(Integer, ForeignKey("users.id"))
+    updated_by = Column(Integer, ForeignKey("users.id"))
 
 class ConfigurationHistory(Base):
     __tablename__ = "configuration_history"
@@ -84,20 +120,4 @@ class ConfigurationHistory(Base):
     changed_by_id = Column(Integer, ForeignKey("users.id"))
     change_reason = Column(String(255))
 
-    changed_by = relationship("User")
-
-class NotificationRule(Base):
-    __tablename__ = "notification_rules"
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100), nullable=False)
-    description = Column(String(255))
-    event_type = Column(String(50), nullable=False)  # new_host, port_change, etc.
-    conditions = Column(JSON)
-    actions = Column(JSON)  # telegram, email, webhook, etc.
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, onupdate=datetime.utcnow)
-    created_by_id = Column(Integer, ForeignKey("users.id"))
-
-    created_by = relationship("User") 
+    changed_by = relationship("User") 
