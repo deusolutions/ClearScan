@@ -12,6 +12,9 @@ from functools import lru_cache
 from sqlalchemy.orm import Session
 from .models import ScanResult, NetworkChange, ChangeNotification
 from .security import get_severity_level
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ResultsComparator:
     def __init__(self, db_session: Session, batch_size: int = 1000):
@@ -63,9 +66,9 @@ class ResultsComparator:
             changes.severity = self._calculate_severity(new_hosts, removed_hosts, changed_hosts)
             
             return changes
-        finally:
-            # Clear caches after comparison
-            self._clear_cache()
+        except Exception as e:
+            logger.error(f"Ошибка сравнения результатов сканирования: {e}")
+            return None
 
     @lru_cache(maxsize=1)
     def _find_new_hosts(self, previous: ScanResult, current: ScanResult) -> Set[str]:
@@ -95,8 +98,8 @@ class ResultsComparator:
             batch_hosts = list(common_hosts)[i:i + self.batch_size]
             for host in batch_hosts:
                 host_changes = self._compare_host_details(
-                    json.dumps(prev_details[host]),  # Convert to string for caching
-                    json.dumps(curr_details[host])
+                    prev_details[host],
+                    curr_details[host]
                 )
                 if host_changes:
                     changes[host] = host_changes
@@ -104,22 +107,18 @@ class ResultsComparator:
         return changes
 
     @lru_cache(maxsize=10000)  # Cache recent host comparisons
-    def _compare_host_details(self, prev_details_json: str, curr_details_json: str) -> Optional[Dict]:
-        """
-        Compare details of a single host between scans.
-        
-        Args:
-            prev_details_json: JSON string of previous host details
-            curr_details_json: JSON string of current host details
-            
-        Returns:
-            Dictionary of changes if any, None if no changes
-        """
-        prev_details = json.loads(prev_details_json)
-        curr_details = json.loads(curr_details_json)
+    def _compare_host_details(self, prev_details: Dict, curr_details: Dict) -> Optional[Dict]:
+        """Compare details of a single host."""
         changes = {}
         
-        # Compare ports
+        # Сравнение статуса
+        if prev_details.get('status') != curr_details.get('status'):
+            changes['status'] = {
+                'old': prev_details.get('status'),
+                'new': curr_details.get('status')
+            }
+        
+        # Сравнение портов
         prev_ports = set(prev_details.get('ports', []))
         curr_ports = set(curr_details.get('ports', []))
         
@@ -127,19 +126,16 @@ class ResultsComparator:
         closed_ports = prev_ports - curr_ports
         
         if new_ports:
-            changes['new_ports'] = sorted(list(new_ports))  # Sort for consistency
+            changes['new_ports'] = sorted(list(new_ports))
         if closed_ports:
             changes['closed_ports'] = sorted(list(closed_ports))
-            
-        # Compare services
+        
+        # Сравнение сервисов
         prev_services = prev_details.get('services', {})
         curr_services = curr_details.get('services', {})
-        
         service_changes = {}
-        # Get all ports to check, convert to strings for consistency
-        all_ports = {str(p) for p in set(prev_services.keys()) | set(curr_services.keys())}
         
-        for port in sorted(all_ports):  # Sort for consistency
+        for port in set(prev_services.keys()) | set(curr_services.keys()):
             if port not in prev_services:
                 service_changes[port] = {'added': curr_services[port]}
             elif port not in curr_services:
@@ -149,34 +145,33 @@ class ResultsComparator:
                     'old': prev_services[port],
                     'new': curr_services[port]
                 }
-                
+        
         if service_changes:
-            changes['service_changes'] = service_changes
-            
+            changes['services'] = service_changes
+        
         return changes if changes else None
 
     def _calculate_severity(self, new_hosts: Set[str], removed_hosts: Set[str], 
-                          changed_hosts: Dict[str, Dict]) -> str:
-        """Calculate the severity level of changes."""
-        # Count significant changes
+                          changed_hosts: Dict) -> str:
+        """Calculate severity level of changes."""
+        # Подсчет значимых изменений
         total_changes = len(new_hosts) + len(removed_hosts)
         new_ports = 0
         service_changes = 0
         
-        for details in changed_hosts.values():
-            new_ports += len(details.get('new_ports', []))
-            service_changes += len(details.get('service_changes', {}))
-            
-        total_changes += len(changed_hosts)
+        for host_changes in changed_hosts.values():
+            new_ports += len(host_changes.get('new_ports', []))
+            if 'services' in host_changes:
+                service_changes += len(host_changes['services'])
         
-        # Define severity thresholds with more granular logic
-        if total_changes > 50 or new_ports > 25:
+        # Определение уровня важности
+        if total_changes > 10 or new_ports > 5:
             return 'critical'
-        elif total_changes > 20 or new_ports > 10:
-            return 'high'
         elif total_changes > 5 or new_ports > 2:
+            return 'high'
+        elif total_changes > 0 or new_ports > 0:
             return 'medium'
-        elif total_changes > 0:
+        elif service_changes > 0:
             return 'low'
         return 'info'
 
@@ -216,17 +211,17 @@ class ResultsComparator:
                     host_changes.append(f"new ports: {', '.join(map(str, sorted(details['new_ports'])))}")
                 if 'closed_ports' in details:
                     host_changes.append(f"closed ports: {', '.join(map(str, sorted(details['closed_ports'])))}")
-                if 'service_changes' in details:
+                if 'services' in details:
                     service_msgs = []
-                    for port in sorted(details['service_changes'].keys()):  # Sort for consistent output
-                        change_info = details['service_changes'][port]
+                    for port in sorted(details['services'].keys()):  # Sort for consistent output
+                        change_info = details['services'][port]
                         if 'added' in change_info:
-                            service_msgs.append(f"new service on port {port}: {change_info['added']}")
+                            service_msgs.append(f"new service on port {port}: {change_info['added']['name']}")
                         elif 'removed' in change_info:
-                            service_msgs.append(f"removed service on port {port}: {change_info['removed']}")
+                            service_msgs.append(f"removed service on port {port}: {change_info['removed']['name']}")
                         else:
                             service_msgs.append(
-                                f"service changed on port {port}: {change_info['old']} → {change_info['new']}"
+                                f"service changed on port {port}: {change_info['old']['name']} → {change_info['new']['name']}"
                             )
                     host_changes.extend(service_msgs)
                 
