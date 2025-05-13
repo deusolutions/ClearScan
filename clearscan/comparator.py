@@ -8,14 +8,29 @@ It analyzes differences between scans and generates detailed reports of changes.
 from typing import Dict, List, Set, Tuple, Optional
 from datetime import datetime
 import json
+from functools import lru_cache
 from sqlalchemy.orm import Session
 from .models import ScanResult, NetworkChange, ChangeNotification
 from .security import get_severity_level
 
 class ResultsComparator:
-    def __init__(self, db_session: Session):
-        """Initialize the comparator with a database session."""
+    def __init__(self, db_session: Session, batch_size: int = 1000):
+        """
+        Initialize the comparator with a database session.
+        
+        Args:
+            db_session: SQLAlchemy database session
+            batch_size: Number of hosts to process in each batch for large networks
+        """
         self.db_session = db_session
+        self.batch_size = batch_size
+        self._clear_cache()
+
+    def _clear_cache(self):
+        """Clear all cached data."""
+        self._find_new_hosts.cache_clear()
+        self._find_removed_hosts.cache_clear()
+        self._compare_host_details.cache_clear()
 
     def compare_scans(self, previous_scan: ScanResult, current_scan: ScanResult) -> NetworkChange:
         """
@@ -28,32 +43,38 @@ class ResultsComparator:
         Returns:
             NetworkChange object containing the detected changes
         """
-        changes = NetworkChange(
-            network_id=current_scan.network_id,
-            scan_id=current_scan.id,
-            previous_scan_id=previous_scan.id,
-            timestamp=datetime.utcnow()
-        )
-        
-        # Compare host states
-        new_hosts = self._find_new_hosts(previous_scan, current_scan)
-        removed_hosts = self._find_removed_hosts(previous_scan, current_scan)
-        changed_hosts = self._find_changed_hosts(previous_scan, current_scan)
-        
-        # Analyze changes and set severity
-        changes.new_hosts = json.dumps(list(new_hosts))
-        changes.removed_hosts = json.dumps(list(removed_hosts))
-        changes.changed_hosts = json.dumps(changed_hosts)
-        changes.severity = self._calculate_severity(new_hosts, removed_hosts, changed_hosts)
-        
-        return changes
+        try:
+            changes = NetworkChange(
+                network_id=current_scan.network_id,
+                scan_id=current_scan.id,
+                previous_scan_id=previous_scan.id,
+                timestamp=datetime.utcnow()
+            )
+            
+            # Compare host states
+            new_hosts = self._find_new_hosts(previous_scan, current_scan)
+            removed_hosts = self._find_removed_hosts(previous_scan, current_scan)
+            changed_hosts = self._find_changed_hosts(previous_scan, current_scan)
+            
+            # Analyze changes and set severity
+            changes.new_hosts = json.dumps(list(new_hosts))
+            changes.removed_hosts = json.dumps(list(removed_hosts))
+            changes.changed_hosts = json.dumps(changed_hosts)
+            changes.severity = self._calculate_severity(new_hosts, removed_hosts, changed_hosts)
+            
+            return changes
+        finally:
+            # Clear caches after comparison
+            self._clear_cache()
 
+    @lru_cache(maxsize=1)
     def _find_new_hosts(self, previous: ScanResult, current: ScanResult) -> Set[str]:
         """Find hosts that appear in current scan but not in previous."""
         prev_hosts = set(json.loads(previous.hosts))
         curr_hosts = set(json.loads(current.hosts))
         return curr_hosts - prev_hosts
 
+    @lru_cache(maxsize=1)
     def _find_removed_hosts(self, previous: ScanResult, current: ScanResult) -> Set[str]:
         """Find hosts that appear in previous scan but not in current."""
         prev_hosts = set(json.loads(previous.hosts))
@@ -66,21 +87,36 @@ class ResultsComparator:
         prev_details = json.loads(previous.host_details)
         curr_details = json.loads(current.host_details)
         
-        # Check hosts that exist in both scans
+        # Get hosts that exist in both scans
         common_hosts = set(prev_details.keys()) & set(curr_details.keys())
         
-        for host in common_hosts:
-            host_changes = self._compare_host_details(
-                prev_details[host],
-                curr_details[host]
-            )
-            if host_changes:
-                changes[host] = host_changes
+        # Process hosts in batches
+        for i in range(0, len(common_hosts), self.batch_size):
+            batch_hosts = list(common_hosts)[i:i + self.batch_size]
+            for host in batch_hosts:
+                host_changes = self._compare_host_details(
+                    json.dumps(prev_details[host]),  # Convert to string for caching
+                    json.dumps(curr_details[host])
+                )
+                if host_changes:
+                    changes[host] = host_changes
                 
         return changes
 
-    def _compare_host_details(self, prev_details: Dict, curr_details: Dict) -> Optional[Dict]:
-        """Compare details of a single host between scans."""
+    @lru_cache(maxsize=10000)  # Cache recent host comparisons
+    def _compare_host_details(self, prev_details_json: str, curr_details_json: str) -> Optional[Dict]:
+        """
+        Compare details of a single host between scans.
+        
+        Args:
+            prev_details_json: JSON string of previous host details
+            curr_details_json: JSON string of current host details
+            
+        Returns:
+            Dictionary of changes if any, None if no changes
+        """
+        prev_details = json.loads(prev_details_json)
+        curr_details = json.loads(curr_details_json)
         changes = {}
         
         # Compare ports
@@ -91,16 +127,19 @@ class ResultsComparator:
         closed_ports = prev_ports - curr_ports
         
         if new_ports:
-            changes['new_ports'] = list(new_ports)
+            changes['new_ports'] = sorted(list(new_ports))  # Sort for consistency
         if closed_ports:
-            changes['closed_ports'] = list(closed_ports)
+            changes['closed_ports'] = sorted(list(closed_ports))
             
         # Compare services
         prev_services = prev_details.get('services', {})
         curr_services = curr_details.get('services', {})
         
         service_changes = {}
-        for port in set(prev_services.keys()) | set(curr_services.keys()):
+        # Get all ports to check, convert to strings for consistency
+        all_ports = {str(p) for p in set(prev_services.keys()) | set(curr_services.keys())}
+        
+        for port in sorted(all_ports):  # Sort for consistency
             if port not in prev_services:
                 service_changes[port] = {'added': curr_services[port]}
             elif port not in curr_services:
@@ -120,14 +159,20 @@ class ResultsComparator:
                           changed_hosts: Dict[str, Dict]) -> str:
         """Calculate the severity level of changes."""
         # Count significant changes
-        total_changes = len(new_hosts) + len(removed_hosts) + len(changed_hosts)
-        new_ports = sum(
-            len(details.get('new_ports', [])) 
-            for details in changed_hosts.values()
-        )
+        total_changes = len(new_hosts) + len(removed_hosts)
+        new_ports = 0
+        service_changes = 0
         
-        # Define severity thresholds
-        if total_changes > 10 or new_ports > 5:
+        for details in changed_hosts.values():
+            new_ports += len(details.get('new_ports', []))
+            service_changes += len(details.get('service_changes', {}))
+            
+        total_changes += len(changed_hosts)
+        
+        # Define severity thresholds with more granular logic
+        if total_changes > 50 or new_ports > 25:
+            return 'critical'
+        elif total_changes > 20 or new_ports > 10:
             return 'high'
         elif total_changes > 5 or new_ports > 2:
             return 'medium'
@@ -153,31 +198,39 @@ class ResultsComparator:
         
         messages = []
         
-        if new_hosts:
-            messages.append(f"New hosts detected: {', '.join(new_hosts)}")
-        if removed_hosts:
-            messages.append(f"Hosts no longer responding: {', '.join(removed_hosts)}")
+        # Add summary counts
+        total_changes = len(new_hosts) + len(removed_hosts) + len(changed_hosts)
+        messages.append(f"Total changes detected: {total_changes}")
         
-        for host, details in changed_hosts.items():
-            host_changes = []
-            if 'new_ports' in details:
-                host_changes.append(f"new ports: {', '.join(map(str, details['new_ports']))}")
-            if 'closed_ports' in details:
-                host_changes.append(f"closed ports: {', '.join(map(str, details['closed_ports']))}")
-            if 'service_changes' in details:
-                service_msgs = []
-                for port, change_info in details['service_changes'].items():
-                    if 'added' in change_info:
-                        service_msgs.append(f"new service on port {port}: {change_info['added']}")
-                    elif 'removed' in change_info:
-                        service_msgs.append(f"removed service on port {port}: {change_info['removed']}")
-                    else:
-                        service_msgs.append(
-                            f"service changed on port {port}: {change_info['old']} → {change_info['new']}"
-                        )
-                host_changes.extend(service_msgs)
-            
-            if host_changes:
-                messages.append(f"Changes for {host}: {'; '.join(host_changes)}")
+        if new_hosts:
+            messages.append(f"New hosts detected ({len(new_hosts)}): {', '.join(sorted(new_hosts))}")
+        if removed_hosts:
+            messages.append(f"Hosts no longer responding ({len(removed_hosts)}): {', '.join(sorted(removed_hosts))}")
+        
+        if changed_hosts:
+            messages.append(f"\nDetailed changes for {len(changed_hosts)} hosts:")
+            for host in sorted(changed_hosts.keys()):  # Sort for consistent output
+                details = changed_hosts[host]
+                host_changes = []
+                if 'new_ports' in details:
+                    host_changes.append(f"new ports: {', '.join(map(str, sorted(details['new_ports'])))}")
+                if 'closed_ports' in details:
+                    host_changes.append(f"closed ports: {', '.join(map(str, sorted(details['closed_ports'])))}")
+                if 'service_changes' in details:
+                    service_msgs = []
+                    for port in sorted(details['service_changes'].keys()):  # Sort for consistent output
+                        change_info = details['service_changes'][port]
+                        if 'added' in change_info:
+                            service_msgs.append(f"new service on port {port}: {change_info['added']}")
+                        elif 'removed' in change_info:
+                            service_msgs.append(f"removed service on port {port}: {change_info['removed']}")
+                        else:
+                            service_msgs.append(
+                                f"service changed on port {port}: {change_info['old']} → {change_info['new']}"
+                            )
+                    host_changes.extend(service_msgs)
+                
+                if host_changes:
+                    messages.append(f"\n{host}:\n- " + "\n- ".join(host_changes))
         
         return "\n".join(messages) 

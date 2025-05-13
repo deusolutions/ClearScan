@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
+import re
 
 from sqlalchemy.orm import Session
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -84,8 +85,13 @@ class SecurityManager:
 
     def _handle_failed_login(self, user: User) -> None:
         """Handle failed login attempt."""
-        # TODO: Implement failed login counter in database
+        user.failed_attempts = (user.failed_attempts or 0) + 1
         user.last_login = datetime.utcnow()
+        
+        if user.failed_attempts >= self.config['max_failed_attempts']:
+            user.is_locked = True
+            user.locked_until = datetime.utcnow() + timedelta(seconds=self.config['lockout_duration'])
+            
         self.session.commit()
 
     def change_password(self, user: User, current_password: str, new_password: str) -> Tuple[bool, str]:
@@ -109,6 +115,34 @@ class SecurityManager:
         
         return True, "Password changed successfully"
 
+    def _validate_password(self, password: str) -> Tuple[bool, str]:
+        """
+        Validate password complexity requirements.
+        
+        Args:
+            password: Password to validate
+            
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        min_length = 12  # Should be loaded from config
+        if len(password) < min_length:
+            return False, f"Password must be at least {min_length} characters long"
+            
+        if not re.search(r"[A-Z]", password):
+            return False, "Password must contain at least one uppercase letter"
+            
+        if not re.search(r"[a-z]", password):
+            return False, "Password must contain at least one lowercase letter"
+            
+        if not re.search(r"\d", password):
+            return False, "Password must contain at least one number"
+            
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+            return False, "Password must contain at least one special character"
+            
+        return True, ""
+
     def create_user(
         self,
         username: str,
@@ -128,6 +162,11 @@ class SecurityManager:
         Returns:
             Tuple of (success, user, message)
         """
+        # Validate password complexity
+        is_valid, error_message = self._validate_password(password)
+        if not is_valid:
+            return False, None, error_message
+            
         existing = self.session.query(User).filter_by(username=username).first()
         if existing:
             return False, None, "Username already exists"

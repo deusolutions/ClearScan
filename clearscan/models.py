@@ -23,7 +23,7 @@ class Network(Base):
     __tablename__ = "networks"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(100), nullable=False)
+    name = Column(String(100), unique=True, nullable=False)
     ip_range = Column(String(100), nullable=False)
     scan_interval = Column(Integer, default=3600)  # in seconds
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -31,6 +31,7 @@ class Network(Base):
     
     scans = relationship("ScanResult", back_populates="network")
     changes = relationship("NetworkChange", back_populates="network")
+    telegram_chats = relationship("TelegramChat", back_populates="network")
 
 class Port(Base):
     __tablename__ = "ports"
@@ -120,4 +121,19 @@ class ConfigurationHistory(Base):
     changed_by_id = Column(Integer, ForeignKey("users.id"))
     change_reason = Column(String(255))
 
-    changed_by = relationship("User") 
+    changed_by = relationship("User")
+
+class TelegramChat(Base):
+    __tablename__ = "telegram_chats"
+    
+    id = Column(Integer, primary_key=True)
+    chat_id = Column(Integer, nullable=False)
+    network_id = Column(Integer, ForeignKey("networks.id"), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_notification = Column(DateTime)
+    
+    network = relationship("Network", back_populates="telegram_chats")
+    
+    class Config:
+        orm_mode = True 

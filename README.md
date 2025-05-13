@@ -10,7 +10,7 @@ ClearScan is an open-source network monitoring solution designed for automated s
 - 🔍 Automated network scanning of user-defined IP ranges
 - 🔄 Hourly monitoring of changes in network state
 - 📱 Real-time notifications via Telegram bot
-- �� Web dashboard with configuration management
+- 🖥 Web dashboard with configuration management
 - 📊 SQLite database for storing scan results and settings
 - 🔒 Security-focused design with role-based access control
 - ⚙️ Dynamic configuration through web interface
@@ -124,4 +124,104 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - 📝 [Issue Tracker](https://github.com/deusolutions/ClearScan/issues)
 - 📖 [Documentation](https://github.com/deusolutions/ClearScan/wiki)
-- 💬 [Discussions](https://github.com/deusolutions/ClearScan/discussions) 
+- 💬 [Discussions](https://github.com/deusolutions/ClearScan/discussions)
+
+## Configuration
+
+### Telegram Bot Setup
+
+1. Create a new bot using [@BotFather](https://t.me/BotFather) on Telegram:
+   - Send `/newbot` to BotFather
+   - Choose a name for your bot
+   - Choose a username for your bot
+   - Copy the bot token
+
+2. Update `config.yaml` with your bot token:
+```yaml
+telegram:
+  token: "YOUR_BOT_TOKEN"
+  allowed_users: [123456789]  # Your Telegram user ID
+  admin_users: [123456789]    # Admin user IDs
+```
+
+3. Get your Telegram user ID:
+   - Send a message to [@userinfobot](https://t.me/userinfobot)
+   - Add your user ID to `allowed_users` and `admin_users` in `config.yaml`
+
+### Network Configuration
+
+Add networks to monitor in the database:
+```python
+from clearscan.models import Network
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+engine = create_engine('sqlite:///clearscan.db')
+Session = sessionmaker(bind=engine)
+session = Session()
+
+network = Network(
+    name='My Network',
+    ip_range='192.168.1.0/24',
+    scan_interval=3600  # Scan every hour
+)
+session.add(network)
+session.commit()
+```
+
+## Usage
+
+### Starting the Service
+
+1. Start the main service:
+```bash
+python -m clearscan
+```
+
+2. Start the Telegram bot:
+```bash
+python -m clearscan.telegram
+```
+
+3. Access the web dashboard:
+   - Open http://localhost:5000 in your browser
+   - Log in with your credentials
+
+### Telegram Bot Commands
+
+- `/start` - Start the bot and get welcome message
+- `/help` - Show available commands
+- `/status` - Show current system status
+- `/networks` - List monitored networks
+- `/scan <network_name>` - Start a scan for specified network
+
+## Development
+
+1. Install development dependencies:
+```bash
+pip install -r requirements-dev.txt
+```
+
+2. Run tests:
+```bash
+pytest
+```
+
+3. Run linting:
+```bash
+flake8
+black .
+mypy .
+```
+
+## Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Security
+
+For security concerns, please read our [SECURITY.md](SECURITY.md) file. 
