@@ -5,7 +5,7 @@ import json
 import pytest
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, scoped_session
 from clearscan.models import Base, Network, ScanResult, NetworkChange
 from clearscan.scanner import NetworkScanner
 from clearscan.comparator import ResultsComparator
@@ -13,30 +13,52 @@ from clearscan.comparator import ResultsComparator
 @pytest.fixture(scope="module")
 def db_engine():
     """Create a test database."""
-    engine = create_engine('sqlite:///:memory:')
+    # Используем файловую базу данных для тестов
+    db_path = "test_db.sqlite"
+    if os.path.exists(db_path):
+        os.remove(db_path)
+    
+    engine = create_engine(f'sqlite:///{db_path}', 
+                          connect_args={'check_same_thread': False})
     Base.metadata.create_all(engine)
-    return engine
+    
+    yield engine
+    
+    # Закрываем все соединения перед удалением файла
+    engine.dispose()
+    
+    # Удаляем файл базы данных после тестов
+    try:
+        if os.path.exists(db_path):
+            os.remove(db_path)
+    except PermissionError:
+        # Если файл все еще занят, пропускаем удаление
+        pass
 
 @pytest.fixture
 def db_session(db_engine):
     """Create a new database session for a test."""
-    Session = sessionmaker(bind=db_engine)
+    Session = scoped_session(sessionmaker(bind=db_engine))
     session = Session()
+    
+    # Create test network
+    network = Network(
+        name='Test Network',
+        ip_range='127.0.0.1/32',
+        scan_interval=3600
+    )
+    session.add(network)
+    session.commit()
+    
     yield session
     session.rollback()
     session.close()
+    Session.remove()
 
 @pytest.fixture
 def network(db_session):
-    """Create a test network."""
-    network = Network(
-        name='Test Network',
-        ip_range='127.0.0.1/32',  # Just localhost for testing
-        scan_interval=3600
-    )
-    db_session.add(network)
-    db_session.commit()
-    return network
+    """Get the test network."""
+    return db_session.query(Network).first()
 
 @pytest.fixture
 def scanner(db_session):
@@ -149,7 +171,7 @@ def test_scan_and_compare_with_changes(db_session, network, scanner, comparator)
     changed_hosts = json.loads(changes.changed_hosts)
     assert '127.0.0.1' in changed_hosts
     assert 443 in changed_hosts['127.0.0.1']['new_ports']
-    assert 'https' in changed_hosts['127.0.0.1']['service_changes']['443']['added']
+    assert changed_hosts['127.0.0.1']['service_changes']['443']['added'] == 'https'
 
 def test_scan_and_compare_large_network(db_session, network, scanner, comparator):
     """Test scanning and comparing with a large number of hosts."""
@@ -199,41 +221,64 @@ def test_scan_and_compare_large_network(db_session, network, scanner, comparator
     
     assert len(new_hosts) == 50  # 50 new hosts
     assert len(removed_hosts) == 50  # 50 removed hosts
-    assert changes.severity == 'high'  # Due to large number of changes
+    assert changes.severity == 'critical'  # Due to large number of changes (100+ total)
 
 def test_concurrent_scans_and_compares(db_session, network, scanner, comparator):
     """Test handling multiple scans and comparisons concurrently."""
     from concurrent.futures import ThreadPoolExecutor
     import threading
+    from sqlalchemy.orm import scoped_session
+    
+    # Create tables in the main thread
+    Base.metadata.create_all(db_session.bind)
+    
+    # Create a shared session factory
+    Session = scoped_session(sessionmaker(bind=db_session.bind))
     
     def scan_and_compare():
         """Perform scan and comparison in a thread."""
-        thread_id = threading.get_ident()
-        hosts = [f'192.168.1.{thread_id % 255}']
-        details = {
-            hosts[0]: {
-                'ports': [80],
-                'services': {'80': 'http'}
+        thread_session = Session()
+        try:
+            thread_id = threading.get_ident()
+            hosts = [f'192.168.1.{thread_id % 255}']
+            details = {
+                hosts[0]: {
+                    'ports': [80],
+                    'services': {'80': 'http'}
+                }
             }
-        }
-        
-        # Create two scans and compare them
-        prev_scan = create_scan_result(
-            db_session,
-            network.id,
-            hosts,
-            details,
-            datetime.utcnow() - timedelta(seconds=1)
-        )
-        
-        curr_scan = create_scan_result(
-            db_session,
-            network.id,
-            hosts,
-            details
-        )
-        
-        return comparator.compare_scans(prev_scan, curr_scan)
+            
+            # Get network from thread session
+            thread_network = thread_session.merge(network)
+            
+            # Create two scans and compare them
+            prev_scan = create_scan_result(
+                thread_session,
+                thread_network.id,
+                hosts,
+                details,
+                datetime.utcnow() - timedelta(seconds=1)
+            )
+            thread_session.commit()
+            
+            curr_scan = create_scan_result(
+                thread_session,
+                thread_network.id,
+                hosts,
+                details
+            )
+            thread_session.commit()
+            
+            thread_comparator = ResultsComparator(thread_session)
+            result = thread_comparator.compare_scans(prev_scan, curr_scan)
+            thread_session.commit()
+            return result
+        except Exception as e:
+            thread_session.rollback()
+            raise e
+        finally:
+            thread_session.close()
+            Session.remove()
     
     # Run 10 concurrent scans and comparisons
     with ThreadPoolExecutor(max_workers=10) as executor:

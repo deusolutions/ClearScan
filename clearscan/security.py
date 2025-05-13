@@ -1,3 +1,9 @@
+"""
+Security Module
+
+This module handles security-related functionality.
+"""
+
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
@@ -211,4 +217,50 @@ class SecurityManager:
         except Exception as e:
             logger.error(f"Error deactivating user: {str(e)}")
             self.session.rollback()
-            return False, f"Error deactivating user: {str(e)}" 
+            return False, f"Error deactivating user: {str(e)}"
+
+def hash_password(password: str) -> str:
+    """
+    Hash a password using Werkzeug's secure hash.
+    
+    Args:
+        password: Password to hash
+        
+    Returns:
+        Hashed password
+    """
+    return generate_password_hash(password)
+
+def verify_password(password_hash: str, password: str) -> bool:
+    """
+    Verify a password against its hash.
+    
+    Args:
+        password_hash: Stored password hash
+        password: Password to verify
+        
+    Returns:
+        True if password matches, False otherwise
+    """
+    return check_password_hash(password_hash, password)
+
+def get_severity_level(total_changes: int, critical_changes: int = 0) -> str:
+    """
+    Determine severity level based on changes.
+    
+    Args:
+        total_changes: Total number of changes
+        critical_changes: Number of critical changes
+        
+    Returns:
+        Severity level string
+    """
+    if critical_changes > 20 or total_changes > 100:
+        return 'critical'
+    elif critical_changes > 10 or total_changes > 50:
+        return 'high'
+    elif critical_changes > 5 or total_changes > 20:
+        return 'medium'
+    elif total_changes > 0:
+        return 'low'
+    return 'info' 

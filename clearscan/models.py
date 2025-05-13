@@ -5,7 +5,7 @@ Database models for ClearScan
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, JSON, Text
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, JSON, Text, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -44,8 +44,10 @@ class Network(Base):
     scan_results = relationship("ScanResult", back_populates="network")
     changes = relationship("NetworkChange", back_populates="network")
     telegram_chats = relationship("TelegramChat", back_populates="network")
+    ports = relationship("Port", back_populates="network")
 
 class Port(Base):
+    """Модель портов для сканирования."""
     __tablename__ = "ports"
 
     id = Column(Integer, primary_key=True)
@@ -68,9 +70,11 @@ class ScanResult(Base):
     host_details = Column(Text, nullable=False)  # JSON с деталями хостов
     status = Column(String(20), default='completed')
     error_message = Column(String(255))
+    scan_duration = Column(Float)  # Длительность сканирования в секундах
     
     network = relationship("Network", back_populates="scan_results")
-    changes = relationship("NetworkChange", back_populates="scan_result")
+    changes_as_current = relationship("NetworkChange", back_populates="scan_result", foreign_keys="NetworkChange.scan_id")
+    changes_as_previous = relationship("NetworkChange", back_populates="previous_scan", foreign_keys="NetworkChange.previous_scan_id")
 
 class NetworkChange(Base):
     """Модель изменений в сети."""
@@ -79,6 +83,7 @@ class NetworkChange(Base):
     id = Column(Integer, primary_key=True)
     network_id = Column(Integer, ForeignKey("networks.id"), nullable=False)
     scan_id = Column(Integer, ForeignKey("scan_results.id"), nullable=False)
+    previous_scan_id = Column(Integer, ForeignKey("scan_results.id"), nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
     severity = Column(String(20), nullable=False)  # critical, high, medium, low, info
     new_hosts = Column(Text)  # JSON список новых хостов
@@ -87,7 +92,8 @@ class NetworkChange(Base):
     message = Column(Text)  # Человекочитаемое описание изменений
     
     network = relationship("Network", back_populates="changes")
-    scan_result = relationship("ScanResult", back_populates="changes")
+    scan_result = relationship("ScanResult", back_populates="changes_as_current", foreign_keys=[scan_id])
+    previous_scan = relationship("ScanResult", back_populates="changes_as_previous", foreign_keys=[previous_scan_id])
     notifications = relationship("ChangeNotification", back_populates="change")
 
 class ChangeNotification(Base):
@@ -100,6 +106,8 @@ class ChangeNotification(Base):
     notification_type = Column(String(20), default='telegram')  # telegram, email, etc.
     status = Column(String(20), default='pending')  # pending, sent, failed
     error_message = Column(String(255))
+    severity = Column(String(20), nullable=False)  # critical, high, medium, low, info
+    message = Column(Text)  # Текст уведомления
     
     change = relationship("NetworkChange", back_populates="notifications")
 
@@ -117,6 +125,7 @@ class Configuration(Base):
     updated_by = Column(Integer, ForeignKey("users.id"))
 
 class ConfigurationHistory(Base):
+    """Модель истории изменений конфигурации."""
     __tablename__ = "configuration_history"
 
     id = Column(Integer, primary_key=True)
@@ -130,6 +139,7 @@ class ConfigurationHistory(Base):
     changed_by = relationship("User")
 
 class TelegramChat(Base):
+    """Модель Telegram чатов."""
     __tablename__ = "telegram_chats"
     
     id = Column(Integer, primary_key=True)
