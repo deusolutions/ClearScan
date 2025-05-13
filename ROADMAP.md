@@ -71,7 +71,7 @@
 - `clearscan/security.py`
 - `tests/test_security.py`
 
-## Phase 2: Extended Functionality (1.5 weeks)
+## Phase 2: Extended Functionality (2 weeks)
 
 ### Task 4: Results Comparator ⚠️
 **Status**: In Progress
@@ -93,62 +93,143 @@
 
 ### Task 5: Telegram Bot Integration
 **Status**: Not Started
-**Estimated Time**: 5 hours
+**Estimated Time**: 8 hours
 **Planned Features**:
 - [ ] Set up Telegram bot
 - [ ] Implement notification system
 - [ ] Add command handlers
 - [ ] Create message templates
 - [ ] Add test suite for bot
+- [ ] Add configuration interface
+- [ ] Implement security checks
+- [ ] Add rate limiting
+
+**Files to Create**:
+- `clearscan/telegram/bot.py`
+- `clearscan/telegram/handlers.py`
+- `clearscan/telegram/notifications.py`
+- `tests/test_telegram.py`
 
 ### Task 6: Web Dashboard
 **Status**: Not Started
-**Estimated Time**: 8 hours
+**Estimated Time**: 16 hours
 **Planned Features**:
 - [ ] Create Flask application
 - [ ] Implement authentication middleware
 - [ ] Add dashboard routes and views
 - [ ] Create configuration interface
 - [ ] Add test suite for web interface
+- [ ] Implement IP whitelist
+- [ ] Add user action audit logging
+- [ ] Create backup/restore interface
+- [ ] Add network visualization
+- [ ] Implement real-time updates
+
+**Files to Create**:
+- `clearscan/web/app.py`
+- `clearscan/web/auth.py`
+- `clearscan/web/views/`
+- `clearscan/web/templates/`
+- `clearscan/web/static/`
+- `tests/test_web.py`
 
 ### Task 7: Task Scheduler
 **Status**: Not Started
-**Estimated Time**: 4 hours
+**Estimated Time**: 8 hours
 **Planned Features**:
 - [ ] Implement scheduler system
 - [ ] Add configurable intervals
 - [ ] Create task queue
 - [ ] Add test suite for scheduler
+- [ ] Implement retry mechanism
+- [ ] Add task prioritization
+- [ ] Create task history tracking
 
-### Task 10: Systemd Service
+**Files to Create**:
+- `clearscan/scheduler/scheduler.py`
+- `clearscan/scheduler/tasks.py`
+- `tests/test_scheduler.py`
+
+### Task 10: System Integration
 **Status**: Not Started
-**Estimated Time**: 2 hours
+**Estimated Time**: 6 hours
 **Planned Features**:
 - [ ] Create systemd service file
 - [ ] Add installation script
 - [ ] Create service management commands
 - [ ] Add logging configuration
+- [ ] Implement UFW integration
+- [ ] Create system health checks
+- [ ] Add automatic updates
 
-## Phase 3: Testing and Release (1 week)
+**Files to Create**:
+- `scripts/install.sh`
+- `scripts/clearscan.service`
+- `scripts/update.sh`
+- `clearscan/system/health.py`
+
+## Phase 3: Testing and Documentation (1 week)
 
 ### Task 8: Logging System
 **Status**: Not Started
-**Estimated Time**: 3 hours
+**Estimated Time**: 6 hours
 **Planned Features**:
 - [ ] Set up centralized logging
 - [ ] Add log rotation
 - [ ] Implement log levels
 - [ ] Create log analyzers
+- [ ] Add performance metrics
+- [ ] Implement log search
+- [ ] Create log visualization
+- [ ] Add alert triggers
+
+**Files to Create**:
+- `clearscan/logger/logger.py`
+- `clearscan/logger/analyzers.py`
+- `clearscan/logger/metrics.py`
+- `tests/test_logger.py`
 
 ### Task 11: Testing and Documentation
 **Status**: Not Started
-**Estimated Time**: 4 hours
+**Estimated Time**: 8 hours
 **Planned Features**:
 - [ ] Complete test coverage
 - [ ] Add integration tests
 - [ ] Create user documentation
 - [ ] Add API documentation
 - [ ] Create deployment guide
+- [ ] Add performance testing
+- [ ] Create troubleshooting guide
+- [ ] Add security documentation
+- [ ] Create developer guide
+- [ ] Add architecture documentation
+
+**Files to Create**:
+- `docs/api.md`
+- `docs/deployment.md`
+- `docs/development.md`
+- `docs/architecture.md`
+- `tests/integration/`
+- `tests/performance/`
+
+### Task 12: Security Enhancements
+**Status**: Not Started
+**Estimated Time**: 8 hours
+**Planned Features**:
+- [ ] Implement IP whitelist
+- [ ] Add user action audit
+- [ ] Create security reports
+- [ ] Add vulnerability scanning
+- [ ] Implement rate limiting
+- [ ] Add session management
+- [ ] Create security alerts
+- [ ] Add compliance checks
+
+**Files to Create**:
+- `clearscan/security/audit.py`
+- `clearscan/security/reports.py`
+- `clearscan/security/compliance.py`
+- `tests/test_security_advanced.py`
 
 ## Phase 4: Ongoing Development
 
@@ -161,6 +242,8 @@
 - [ ] Add support for other scanners
 - [ ] Implement rate limiting
 - [ ] Add network discovery features
+- [ ] Create mobile application
+- [ ] Add machine learning for anomaly detection
 
 ### Community Requests
 *(To be filled based on community feedback)*
@@ -169,12 +252,15 @@
 
 ### Current Phase: 2
 ### Completed Tasks: 5.5
-### Remaining Tasks: 5.5
-### Overall Progress: ~50%
+### Remaining Tasks: 7.5
+### Overall Progress: ~42%
 
 ## Notes
 - Phase 1 core functionality is complete
 - Git setup and version control fully established
 - Results Comparator implementation in progress
 - Moving forward with Phase 2 tasks
-- Need to prioritize test coverage for existing components 
+- Need to prioritize test coverage for existing components
+- Added new security and documentation requirements
+- Extended task descriptions with detailed subtasks
+- Updated time estimates based on new requirements 
