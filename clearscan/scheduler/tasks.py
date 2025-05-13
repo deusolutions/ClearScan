@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 
 from ..models import Network
-from ..scanner import Scanner
+from ..scanner import NetworkScanner
 from ..comparator import ResultsComparator
 from ..telegram.notifications import NotificationManager
 
@@ -32,7 +32,7 @@ class ScanTask:
         """
         self.db_session = db_session
         self.network_id = network_id
-        self.scanner = Scanner(db_session)
+        self.scanner = NetworkScanner(db_session)
         self.comparator = ResultsComparator(db_session)
         
     async def __call__(self) -> None:
