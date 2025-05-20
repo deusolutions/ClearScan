@@ -2,20 +2,15 @@
 telegram_bot.py - Telegram-бот для ClearScan
 """
 import logging
-import asyncio
-import telegram
-from telegram import Update
+from telegram import Update, Bot
 from telegram.ext import (
     Application,
     CommandHandler,
     ContextTypes,
-    MessageHandler,
-    filters,
 )
 import sqlite3
 import os
 import sys
-from datetime import datetime, timedelta
 
 # Добавляем путь к src в PYTHONPATH
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -31,6 +26,7 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger('telegram_bot')
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
@@ -50,6 +46,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/help - показать это сообщение"
     )
 
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     username = update.effective_user.username
@@ -66,6 +63,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "/history - показать историю изменений\n"
         "/help - показать это сообщение"
     )
+
 
 async def get_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
@@ -110,6 +108,7 @@ async def get_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         if 'conn' in locals():
             conn.close()
 
+
 async def get_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     username = update.effective_user.username
@@ -153,11 +152,11 @@ async def get_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         if 'conn' in locals():
             conn.close()
 
+
 def send_port_changes(token, chat_id, added, removed):
     """
     Отправляет уведомление о новых/закрытых портах.
     """
-    from telegram import Bot
     bot = Bot(token)
     msg = ""
     if added:
@@ -178,6 +177,7 @@ def send_port_changes(token, chat_id, added, removed):
         msg = "Изменений не обнаружено."
     bot.send_message(chat_id=chat_id, text=msg)
 
+
 def main() -> None:
     logger.info("Запуск телеграм бота")
     
@@ -193,6 +193,7 @@ def main() -> None:
     # Запускаем бота
     logger.info("Бот запущен и готов к работе")
     application.run_polling()
+
 
 if __name__ == "__main__":
     main()
