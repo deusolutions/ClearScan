@@ -5,7 +5,6 @@ import logging
 import os
 import sys
 import sqlite3
-import yaml
 from telegram import Update, Bot
 from telegram.ext import (
     Application,
