@@ -13,8 +13,3 @@ RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-
-#
-# Важно! Перед запуском:
-# sudo useradd --system --no-create-home --shell /usr/sbin/nologin clearscan
-# sudo chown -R clearscan:clearscan /opt/clearscan

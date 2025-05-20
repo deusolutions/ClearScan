@@ -12,8 +12,11 @@ fi
 apt update
 apt install -y nmap python3-pip python3-venv
 
-# Создание пользователя clearscan, если не существует
-id clearscan &>/dev/null || useradd --system --no-create-home --shell /usr/sbin/nologin clearscan
+# Создание системного пользователя clearscan, если не существует
+if ! id "clearscan" &>/dev/null; then
+    echo "Создаю системного пользователя clearscan..."
+    useradd --system --no-create-home --shell /usr/sbin/nologin clearscan
+fi
 
 # Копирование файлов проекта в /opt/clearscan
 mkdir -p /opt/clearscan
