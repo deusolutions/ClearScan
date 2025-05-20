@@ -26,30 +26,29 @@ ClearScan — это open-source система для регулярного с
 
 ## Установка и запуск (Linux, production-ready)
 
-1. **Клонируйте репозиторий:**
-   ```bash
-   git clone https://github.com/deusolutions/ClearScan.git
-   cd ClearScan
-   ```
-2. **Запустите скрипт установки:**
+1. **Запустите установку одной командой:**
    ```bash
    sudo bash install.sh
    ```
-   Скрипт установит nmap, python3-pip, gunicorn, создаст структуру `/opt/clearscan/` и пример конфига `/opt/clearscan/config.yaml`.
-3. **Отредактируйте /opt/clearscan/config.yaml** под ваши подсети, порты, токен Telegram, логин/пароль.
-4. **Инициализируйте БД:**
+   Скрипт автоматически:
+   - установит зависимости (nmap, python3-pip, gunicorn)
+   - создаст пользователя clearscan
+   - скопирует все файлы в /opt/clearscan
+   - настроит права
+   - скопирует и активирует systemd-сервисы (dashboard и Telegram-бот)
+   - инициализирует базу данных
+   - запустит сервисы
+
+2. **Отредактируйте /opt/clearscan/config.yaml** под ваши подсети, порты, токен Telegram, логин/пароль.
    ```bash
-   sudo python3 /opt/clearscan/src/db.py
+   sudo nano /opt/clearscan/config.yaml
+   sudo systemctl restart clearscan clearscan-bot
    ```
-5. **Настройте автозапуск через systemd:**
+
+3. **Проверьте статус сервисов:**
    ```bash
-   sudo cp systemd/clearscan.service /etc/systemd/system/clearscan.service
-   sudo systemctl daemon-reload
-   sudo systemctl enable clearscan
-   sudo systemctl start clearscan
-   sudo systemctl status clearscan
+   systemctl status clearscan clearscan-bot
    ```
-   После этого ClearScan будет работать как демон: сканер, дашборд и Telegram-бот будут запускаться автоматически.
 
 ---
 

@@ -1,5 +1,5 @@
 [Unit]
-Description=ClearScan Dashboard
+Description=ClearScan Telegram Bot
 After=network.target
 
 [Service]
@@ -7,10 +7,9 @@ Type=simple
 User=clearscan
 Group=clearscan
 WorkingDirectory=/opt/clearscan
-ExecStart=/usr/bin/gunicorn -w 2 -b 0.0.0.0:80 src.dashboard:app
+ExecStart=/usr/bin/python3 /opt/clearscan/src/telegram_bot.py
 Restart=always
 RestartSec=5
-# EnvironmentFile=-/opt/clearscan/.env  # (опционально для переменных)
 
 [Install]
 WantedBy=multi-user.target
@@ -19,5 +18,3 @@ WantedBy=multi-user.target
 # Важно! Перед запуском:
 # sudo useradd --system --no-create-home --shell /usr/sbin/nologin clearscan
 # sudo chown -R clearscan:clearscan /opt/clearscan
-#
-# Для Telegram-бота создайте отдельный clearscan-bot.service
