@@ -15,6 +15,7 @@ app.secret_key = os.urandom(24)
 USERNAME = config.get('http_auth_username', 'admin')
 PASSWORD = config.get('http_auth_password', 'password')
 
+
 @app.route('/', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
