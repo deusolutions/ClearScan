@@ -1,9 +1,11 @@
 """
 telegram_bot.py - Telegram-бот для ClearScan
 """
-import logging
 import os
 import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config import DATABASE_PATH, ALLOWED_USERS, TELEGRAM_TOKEN
+import logging
 import sqlite3
 from telegram import Update, Bot
 from telegram.ext import (
@@ -11,9 +13,6 @@ from telegram.ext import (
     CommandHandler,
     ContextTypes,
 )
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import DATABASE_PATH, ALLOWED_USERS, TELEGRAM_TOKEN
 
 # Настройка логирования
 logging.basicConfig(
