@@ -5,6 +5,7 @@ import logging
 import os
 import sys
 import sqlite3
+import yaml
 from telegram import Update, Bot
 from telegram.ext import (
     Application,
@@ -14,7 +15,7 @@ from telegram.ext import (
 
 # Добавляем путь к src в PYTHONPATH
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.config import DATABASE_PATH, ALLOWED_USERS, TELEGRAM_TOKEN
+from config import DATABASE_PATH, ALLOWED_USERS, TELEGRAM_TOKEN
 
 # Настройка логирования
 logging.basicConfig(
