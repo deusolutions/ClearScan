@@ -36,7 +36,8 @@ GUNICORN_PATH="/opt/clearscan/venv/bin/gunicorn"
 PYTHON3_PATH="/opt/clearscan/venv/bin/python3"
 
 # Подставляем пути в systemd unit-файлы
-sed "s|{{GUNICORN_PATH}}|$GUNICORN_PATH|g" /opt/clearscan/systemd/clearscan.service > /etc/systemd/system/clearscan.service
+sed "s|{{GUNICORN_PATH}}|$GUNICORN_PATH|g" /opt/clearscan/systemd/clearscan.service | \
+  sed "s|-b 0.0.0.0:80 |-b 0.0.0.0:8080 |g" > /etc/systemd/system/clearscan.service
 sed "s|{{PYTHON3_PATH}}|$PYTHON3_PATH|g" /opt/clearscan/systemd/clearscan-bot.service > /etc/systemd/system/clearscan-bot.service
 
 # Генерация случайного пароля для веб-панели
