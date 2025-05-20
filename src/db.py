@@ -3,7 +3,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 
-DB_PATH = "clearscan.db"
+DB_PATH = "/opt/clearscan/clearscan.db"
 LOG_PATH = '/var/log/clearscan.log'
 LOG_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
 LOG_BACKUP_COUNT = 3
