@@ -35,8 +35,8 @@ def test_login_logout(client):
     import yaml
     with open("config.yaml", "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
-    username = config["dashbord_credentials"]["username"]
-    password = config["dashbord_credentials"]["password"]
+    username = config["http_auth_username"]
+    password = config["http_auth_password"]
     resp = client.post('/', data={'username': username, 'password': password}, follow_redirects=True)
     assert 'ClearScan Dashboard' in resp.data.decode('utf-8')
     # Логаут
@@ -48,8 +48,8 @@ def test_dashboard_render(client):
     import yaml
     with open("config.yaml", "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
-    username = config["dashbord_credentials"]["username"]
-    password = config["dashbord_credentials"]["password"]
+    username = config["http_auth_username"]
+    password = config["http_auth_password"]
     client.post('/', data={'username': username, 'password': password})
     resp = client.get('/dashboard')
     assert 'Последние сканы' in resp.data.decode('utf-8')

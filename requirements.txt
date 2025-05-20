@@ -4,5 +4,6 @@ python-telegram-bot
 Flask
 requests
 pytest
+pytest-asyncio
 flake8
 gunicorn
