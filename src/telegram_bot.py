@@ -3,8 +3,6 @@ telegram_bot.py - Telegram-бот для ClearScan
 """
 import os
 import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import DATABASE_PATH, ALLOWED_USERS, TELEGRAM_TOKEN
 import logging
 import sqlite3
 from telegram import Update, Bot
@@ -27,6 +25,7 @@ logger = logging.getLogger('telegram_bot')
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    from config import ALLOWED_USERS
     user_id = update.effective_user.id
     username = update.effective_user.username
     logger.info(f"Пользователь {username} (ID: {user_id}) запустил бота")
@@ -44,6 +43,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    from config import ALLOWED_USERS
     user_id = update.effective_user.id
     username = update.effective_user.username
     logger.info(f"Пользователь {username} (ID: {user_id}) запросил помощь")
@@ -60,6 +60,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def get_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    from config import DATABASE_PATH, ALLOWED_USERS
     user_id = update.effective_user.id
     username = update.effective_user.username
     logger.info(f"Пользователь {username} (ID: {user_id}) запросил статус")
@@ -97,6 +98,7 @@ async def get_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 
 async def get_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    from config import DATABASE_PATH, ALLOWED_USERS
     user_id = update.effective_user.id
     username = update.effective_user.username
     logger.info(f"Пользователь {username} (ID: {user_id}) запросил историю")
@@ -159,6 +161,8 @@ def send_port_changes(token, chat_id, added, removed):
 
 
 def main() -> None:
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from config import TELEGRAM_TOKEN
     logger.info("Запуск телеграм бота")
     # Создаем приложение
     application = Application.builder().token(TELEGRAM_TOKEN).build()
