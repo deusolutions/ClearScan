@@ -31,24 +31,24 @@ ClearScan — это open-source система для регулярного с
    sudo bash install.sh
    ```
    Скрипт автоматически:
-   - установит зависимости (nmap, python3-pip, gunicorn)
+   - установит зависимости (nmap, python3-pip, python3-venv)
    - создаст пользователя clearscan
    - скопирует все файлы в /opt/clearscan
+   - создаст виртуальное окружение и установит зависимости в него
    - настроит права
    - скопирует и активирует systemd-сервисы (dashboard и Telegram-бот)
    - инициализирует базу данных
+   - сгенерирует безопасный пароль для веб-панели, выведет его в терминал и запишет в config.yaml
    - запустит сервисы
 
-2. **Отредактируйте /opt/clearscan/config.yaml** под ваши подсети, порты, токен Telegram, логин/пароль.
-   ```bash
-   sudo nano /opt/clearscan/config.yaml
-   sudo systemctl restart clearscan clearscan-bot
-   ```
+2. **Пароль для входа в веб-панель** будет показан в терминале после установки и автоматически записан в /opt/clearscan/config.yaml. Логин: admin
 
 3. **Проверьте статус сервисов:**
    ```bash
    systemctl status clearscan clearscan-bot
    ```
+
+4. **(Опционально) Измените другие параметры в /opt/clearscan/config.yaml** (подсети, порты, Telegram-токен и т.д.)
 
 ---
 

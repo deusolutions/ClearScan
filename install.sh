@@ -10,8 +10,7 @@ fi
 
 # Установка зависимостей
 apt update
-apt install -y nmap python3-pip
-pip3 install gunicorn
+apt install -y nmap python3-pip python3-venv
 
 # Создание пользователя clearscan, если не существует
 id clearscan &>/dev/null || useradd --system --no-create-home --shell /usr/sbin/nologin clearscan
@@ -21,9 +20,24 @@ mkdir -p /opt/clearscan
 cp -r . /opt/clearscan/
 chown -R clearscan:clearscan /opt/clearscan
 
-# Копирование systemd unit-файлов
-cp /opt/clearscan/systemd/clearscan.service /etc/systemd/system/clearscan.service
-cp /opt/clearscan/systemd/clearscan-bot.service /etc/systemd/system/clearscan-bot.service
+# Создание виртуального окружения и установка зависимостей
+cd /opt/clearscan
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+deactivate
+
+# Определяем путь к gunicorn и python3 из venv
+GUNICORN_PATH="/opt/clearscan/venv/bin/gunicorn"
+PYTHON3_PATH="/opt/clearscan/venv/bin/python3"
+
+# Подставляем пути в systemd unit-файлы
+sed "s|{{GUNICORN_PATH}}|$GUNICORN_PATH|g" /opt/clearscan/systemd/clearscan.service > /etc/systemd/system/clearscan.service
+sed "s|{{PYTHON3_PATH}}|$PYTHON3_PATH|g" /opt/clearscan/systemd/clearscan-bot.service > /etc/systemd/system/clearscan-bot.service
+
+# Генерация случайного пароля для веб-панели
+WEB_PASSWORD=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 16)
 
 # Копирование примера конфигурации (только если нет)
 if [ ! -f /opt/clearscan/config.yaml ]; then
@@ -41,9 +55,12 @@ telegram_bot_token: 'your_telegram_bot_token'
 scan_interval: 3600
 nmap_path: '/usr/bin/nmap'
 http_auth_username: 'admin'
-http_auth_password: 'password'
+http_auth_password: '$WEB_PASSWORD'
 EOCFG
   chown clearscan:clearscan /opt/clearscan/config.yaml
+else
+  # Если конфиг уже есть, обновляем только пароль
+  sed -i "s/^http_auth_password: .*/http_auth_password: '$WEB_PASSWORD'/" /opt/clearscan/config.yaml
 fi
 
 # Явно создаём файл БД, если его нет, и задаём права
@@ -54,7 +71,7 @@ fi
 chmod 660 /opt/clearscan/clearscan.db
 
 # Инициализация БД (от пользователя clearscan)
-sudo -u clearscan python3 /opt/clearscan/src/db.py || {
+sudo -u clearscan /opt/clearscan/venv/bin/python3 /opt/clearscan/src/db.py || {
   echo "[ERROR] Не удалось инициализировать БД. Проверьте права на /opt/clearscan и clearscan.db";
   exit 1;
 }
@@ -69,5 +86,6 @@ cat <<EOF
 - Пример конфигурации: /opt/clearscan/config.yaml
 - Каталог приложения: /opt/clearscan/
 - Dashboard: http://<сервер>:80
+- Для входа в веб-панель: admin / $WEB_PASSWORD
 - Для управления: systemctl [status|restart|stop] clearscan clearscan-bot
 EOF

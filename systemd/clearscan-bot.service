@@ -7,7 +7,7 @@ Type=simple
 User=clearscan
 Group=clearscan
 WorkingDirectory=/opt/clearscan
-ExecStart=/usr/bin/python3 /opt/clearscan/src/telegram_bot.py
+ExecStart={{PYTHON3_PATH}} /opt/clearscan/src/telegram_bot.py
 Restart=always
 RestartSec=5
 
