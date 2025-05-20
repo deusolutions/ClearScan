@@ -7,6 +7,12 @@
 
 ---
 
+## Важно
+
+**ClearScan поддерживается и предназначен только для Linux-серверов. Запуск на Windows не поддерживается и не рекомендуется.**
+
+---
+
 ## О проекте
 
 ClearScan — это open-source система для регулярного сканирования подсетей с помощью nmap, хранения истории изменений, мгновенных уведомлений через Telegram-бота и современного веб-дашборда на Flask. Проект ориентирован на безопасность, автоматизацию и простоту внедрения в инфраструктуру любого масштаба.
@@ -18,44 +24,40 @@ ClearScan — это open-source система для регулярного с
 
 ---
 
-## Быстрый старт
+## Установка и запуск (Linux, production-ready)
 
 1. **Клонируйте репозиторий:**
-   ```powershell
+   ```bash
    git clone https://github.com/deusolutions/ClearScan.git
    cd ClearScan
    ```
-2. **Установите зависимости:**
-   ```powershell
-   pip install -r requirements.txt
+2. **Запустите скрипт установки:**
+   ```bash
+   sudo bash install.sh
    ```
-3. **Настройте конфиг:**
-   - Отредактируйте `config.yaml` (подсети, порты, токен Telegram, логин/пароль).
+   Скрипт установит nmap, python3-pip, gunicorn, создаст структуру `/opt/clearscan/` и пример конфига `/opt/clearscan/config.yaml`.
+3. **Отредактируйте /opt/clearscan/config.yaml** под ваши подсети, порты, токен Telegram, логин/пароль.
 4. **Инициализируйте БД:**
-   ```powershell
-   python src/db.py
+   ```bash
+   sudo python3 /opt/clearscan/src/db.py
    ```
-5. **Запустите сканер или дашборд:**
-   ```powershell
-   python src/scanner.py
-   python src/dashboard.py
+5. **Настройте автозапуск через systemd:**
+   ```bash
+   sudo cp systemd/clearscan.service /etc/systemd/system/clearscan.service
+   sudo systemctl daemon-reload
+   sudo systemctl enable clearscan
+   sudo systemctl start clearscan
+   sudo systemctl status clearscan
    ```
-6. **Запустите Telegram-бота:**
-   ```powershell
-   python src/telegram_bot.py
-   ```
+   После этого ClearScan будет работать как демон: сканер, дашборд и Telegram-бот будут запускаться автоматически.
 
 ---
 
-## Основные возможности
-
-- Сканирование подсетей по расписанию (nmap)
-- Хранение истории изменений (SQLite)
-- Telegram-уведомления о новых/закрытых портах
-- Веб-дашборд (Flask, авторизация)
-- Логирование и автоматизация (cron, systemd)
-- Интеграционные и unit-тесты (pytest)
-- CI/CD (GitHub Actions)
+## Безопасность и эксплуатация
+- Рекомендуется запускать ClearScan только от отдельного системного пользователя (см. install.sh и secure_setup.sh).
+- Используйте UFW/firewalld для ограничения доступа к дашборду и сервисам.
+- Не храните реальные токены и пароли в публичных репозиториях.
+- Все логи и база данных по умолчанию размещаются в /opt/clearscan/.
 
 ---
 
