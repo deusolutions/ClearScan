@@ -5,3 +5,4 @@ Flask
 requests
 pytest
 flake8
+gunicorn
