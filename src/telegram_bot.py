@@ -12,7 +12,6 @@ from telegram.ext import (
     ContextTypes,
 )
 
-# Добавляем путь к src в PYTHONPATH
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import DATABASE_PATH, ALLOWED_USERS, TELEGRAM_TOKEN
 
