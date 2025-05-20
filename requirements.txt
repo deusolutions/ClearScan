@@ -1,5 +1,7 @@
+pyyaml
+bcrypt
+python-telegram-bot
 Flask
 requests
-python-telegram-bot
-nmap
-sqlite3
+pytest
+flake8

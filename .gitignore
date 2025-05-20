@@ -1,0 +1,22 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# SQLite database files
+*.sqlite3
+*.db
+
+# Logs
+*.log
+/var/log/clearscan.log
+
+# Environment
+.env
+
+# VS Code settings
+.vscode/
+
+# Python virtual environment
+venv/
+env/

@@ -1,0 +1,16 @@
+[Unit]
+Description=ClearScan Dashboard and Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=clearscan
+Group=clearscan
+WorkingDirectory=/opt/clearscan
+ExecStart=/usr/bin/gunicorn -w 2 -b 0.0.0.0:80 src.dashboard:app
+ExecStartPost=/usr/bin/python3 /opt/clearscan/src/telegram_bot.py &
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

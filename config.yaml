@@ -1,0 +1,12 @@
+# Пример конфигурационного файла для ClearScan
+subnets:
+  - "87.252.250.0/24"
+  - "87.252.245.0/24"
+ports:
+  - 22
+  - 80
+  - 443
+telegram_token: "your_telegram_bot_token"
+dashbord_credentials:
+  username: "admin"
+  password: "password"

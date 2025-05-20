@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>ClearScan Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto py-8">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold">ClearScan Dashboard</h1>
+            <a href="/logout" class="text-blue-600 hover:underline">Выйти</a>
+        </div>
+        <form method="get" class="mb-4 flex space-x-4">
+            <input name="ip" value="{{ ip_filter }}" placeholder="IP" class="border px-3 py-2 rounded">
+            <input name="port" value="{{ port_filter }}" placeholder="Порт" class="border px-3 py-2 rounded">
+            <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Фильтр</button>
+        </form>
+        <div class="bg-white rounded shadow p-4 mb-8">
+            <h2 class="text-xl font-semibold mb-2">Последние сканы</h2>
+            <table class="min-w-full table-auto">
+                <thead>
+                    <tr>
+                        <th class="px-2 py-1">IP</th>
+                        <th class="px-2 py-1">Порт</th>
+                        <th class="px-2 py-1">Статус</th>
+                        <th class="px-2 py-1">Время</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for ip, port, status, scan_time in rows %}
+                    <tr class="border-b">
+                        <td class="px-2 py-1">{{ ip }}</td>
+                        <td class="px-2 py-1">{{ port }}</td>
+                        <td class="px-2 py-1">{{ status }}</td>
+                        <td class="px-2 py-1">{{ scan_time }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="bg-white rounded shadow p-4">
+            <h2 class="text-xl font-semibold mb-2">Изменения</h2>
+            <table class="min-w-full table-auto">
+                <thead>
+                    <tr>
+                        <th class="px-2 py-1">Тип</th>
+                        <th class="px-2 py-1">IP</th>
+                        <th class="px-2 py-1">Порт</th>
+                        <th class="px-2 py-1">Статус</th>
+                        <th class="px-2 py-1">Время</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for change_type, ip, port, status, change_time in changes %}
+                    <tr class="border-b">
+                        <td class="px-2 py-1">{{ '🟢' if change_type == 'opened' else '🔴' }}</td>
+                        <td class="px-2 py-1">{{ ip }}</td>
+                        <td class="px-2 py-1">{{ port }}</td>
+                        <td class="px-2 py-1">{{ status }}</td>
+                        <td class="px-2 py-1">{{ change_time }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
