@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session
 import sqlite3
 import yaml
-import bcrypt
 import os
 
 # Загрузка конфигурации
@@ -13,18 +12,15 @@ app = Flask(
 )
 app.secret_key = os.urandom(24)
 
-USERNAME = config['dashbord_credentials']['username']
-PASSWORD_HASH = bcrypt.hashpw(
-    config['dashbord_credentials']['password'].encode(), bcrypt.gensalt()
-)
-
+USERNAME = config.get('http_auth_username', 'admin')
+PASSWORD = config.get('http_auth_password', 'password')
 
 @app.route('/', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        if username == USERNAME and bcrypt.checkpw(password.encode(), PASSWORD_HASH):
+        if username == USERNAME and password == PASSWORD:
             session['user'] = username
             return redirect(url_for('dashboard'))
         template_name = 'login.html'
@@ -78,4 +74,4 @@ def logout():
 
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=80)
+    app.run(host='0.0.0.0', port=8080, debug=True)

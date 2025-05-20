@@ -6,7 +6,9 @@ ports:
   - 22
   - 80
   - 443
-telegram_token: "your_telegram_bot_token"
-dashbord_credentials:
-  username: "admin"
-  password: "password"
+database_path: '/opt/clearscan/clearscan.db'
+telegram_bot_token: 'your_telegram_bot_token'
+scan_interval: 3600
+nmap_path: '/usr/bin/nmap'
+http_auth_username: 'admin'
+http_auth_password: 'password'
