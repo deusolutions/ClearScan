@@ -4,7 +4,7 @@ telegram_bot.py - Telegram-бот для ClearScan
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import sqlite3
-from src.config import DATABASE_PATH
+from .config import DATABASE_PATH
 
 # Разрешённые пользователи (ID)
 ALLOWED_USERS = {123456789}  # Замените на свои Telegram user_id
@@ -89,7 +89,7 @@ def send_port_changes(token, chat_id, added, removed):
 
 
 if __name__ == "__main__":
-    import src.config as config
+    import config as config
     import asyncio
     app = ApplicationBuilder().token(config.TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
