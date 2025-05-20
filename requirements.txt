@@ -1,0 +1,5 @@
+Flask
+requests
+python-telegram-bot
+nmap
+sqlite3
