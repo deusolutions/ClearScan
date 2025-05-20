@@ -25,5 +25,5 @@ jobs:
         flake8 src
     - name: Run tests with pytest
       run: |
-        $env:PYTHONPATH = "$(pwd)/src"
+        export PYTHONPATH=$(pwd)/src
         pytest
