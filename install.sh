@@ -46,8 +46,18 @@ EOCFG
   chown clearscan:clearscan /opt/clearscan/config.yaml
 fi
 
+# Явно создаём файл БД, если его нет, и задаём права
+if [ ! -f /opt/clearscan/clearscan.db ]; then
+  sudo -u clearscan touch /opt/clearscan/clearscan.db
+  chown clearscan:clearscan /opt/clearscan/clearscan.db
+fi
+chmod 660 /opt/clearscan/clearscan.db
+
 # Инициализация БД (от пользователя clearscan)
-sudo -u clearscan python3 /opt/clearscan/src/db.py
+sudo -u clearscan python3 /opt/clearscan/src/db.py || {
+  echo "[ERROR] Не удалось инициализировать БД. Проверьте права на /opt/clearscan и clearscan.db";
+  exit 1;
+}
 
 # Включение и запуск сервисов
 systemctl daemon-reload
