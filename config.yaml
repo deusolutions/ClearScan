@@ -7,8 +7,9 @@ ports:
   - 80
   - 443
 database_path: '/opt/clearscan/clearscan.db'
-telegram_bot_token: 'your_telegram_bot_token'
+telegram_bot_token: 'telegram_bot_token'
+allowed_users: [123456789]  # Замените на свои Telegram user_id
 scan_interval: 3600
 nmap_path: '/usr/bin/nmap'
 http_auth_username: 'admin'
-http_auth_password: 'password'
+http_auth_password: 'gcoSF3Ezw4M0DjmD'

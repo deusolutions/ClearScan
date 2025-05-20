@@ -9,11 +9,7 @@ import sys
 
 # Добавляем путь к src в PYTHONPATH
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.config import DATABASE_PATH
-
-# Разрешённые пользователи (ID)
-ALLOWED_USERS = {123456789}  # Замените на свои Telegram user_id
-
+from src.config import DATABASE_PATH, ALLOWED_USERS
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ALLOWED_USERS:

@@ -15,6 +15,9 @@ if os.path.exists(CONFIG_PATH):
     TELEGRAM_BOT_TOKEN = config.get('telegram_bot_token')
     if not TELEGRAM_BOT_TOKEN:
         raise ValueError("telegram_bot_token not found in config.yaml")
+    ALLOWED_USERS = set(config.get('allowed_users', []))
+    if not ALLOWED_USERS:
+        raise ValueError("allowed_users not found in config.yaml")
 else:
     HTTP_AUTH_USERNAME = 'admin'
     HTTP_AUTH_PASSWORD = 'password'
