@@ -1,10 +1,12 @@
 import sqlite3
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import datetime
+import aiosqlite
+from config.config import Config
 
 class Database:
-    def __init__(self, db_path: str = 'clearscan.db'):
-        self.db_path = db_path
+    def __init__(self, config: Config):
+        self.db_path = config.db_path
         self._init_db()
 
     def _init_db(self):
@@ -118,4 +120,75 @@ class Database:
                     change['old_status'],
                     change['new_status']
                 ))
-            conn.commit() 
+            conn.commit()
+
+    async def get_scans_count(
+        self,
+        cidr: Optional[str] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None
+    ) -> int:
+        """Получение общего количества записей с учетом фильтров"""
+        query = "SELECT COUNT(*) FROM scans WHERE 1=1"
+        params = []
+        
+        if cidr:
+            query += " AND subnet LIKE ?"
+            params.append(f"{cidr}%")
+        
+        if date_from:
+            query += " AND timestamp >= ?"
+            params.append(date_from.isoformat())
+        
+        if date_to:
+            query += " AND timestamp <= ?"
+            params.append(date_to.isoformat())
+        
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute(query, params) as cursor:
+                result = await cursor.fetchone()
+                return result[0] if result else 0
+
+    async def get_scans(
+        self,
+        cidr: Optional[str] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
+        limit: int = 10,
+        offset: int = 0,
+        sort_desc: bool = True
+    ) -> List[Dict[str, Any]]:
+        """Получение отфильтрованных и отсортированных записей"""
+        query = """
+            SELECT 
+                id,
+                subnet,
+                timestamp,
+                status,
+                (SELECT COUNT(*) FROM ports WHERE scan_id = scans.id) as open_ports
+            FROM scans 
+            WHERE 1=1
+        """
+        params = []
+        
+        if cidr:
+            query += " AND subnet LIKE ?"
+            params.append(f"{cidr}%")
+        
+        if date_from:
+            query += " AND timestamp >= ?"
+            params.append(date_from.isoformat())
+        
+        if date_to:
+            query += " AND timestamp <= ?"
+            params.append(date_to.isoformat())
+        
+        query += f" ORDER BY timestamp {'DESC' if sort_desc else 'ASC'}"
+        query += " LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = sqlite3.Row
+            async with db.execute(query, params) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows] 

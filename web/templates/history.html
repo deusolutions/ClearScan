@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}История сканирований - ClearScan{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1 class="mb-4">История сканирований</h1>
+        
+        <!-- Фильтры -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <form method="get" class="row g-3">
+                    <div class="col-md-3">
+                        <label for="cidr" class="form-label">CIDR</label>
+                        <input type="text" class="form-control" id="cidr" name="cidr" 
+                               value="{{ request.query_params.get('cidr', '') }}"
+                               placeholder="Например: 192.168.1.0/24">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="date_from" class="form-label">От</label>
+                        <input type="datetime-local" class="form-control" id="date_from" name="date_from"
+                               value="{{ request.query_params.get('date_from', '') }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="date_to" class="form-label">До</label>
+                        <input type="datetime-local" class="form-control" id="date_to" name="date_to"
+                               value="{{ request.query_params.get('date_to', '') }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="sort" class="form-label">Сортировка</label>
+                        <select class="form-select" id="sort" name="sort">
+                            <option value="desc" {% if request.query_params.get('sort') != 'asc' %}selected{% endif %}>
+                                По убыванию
+                            </option>
+                            <option value="asc" {% if request.query_params.get('sort') == 'asc' %}selected{% endif %}>
+                                По возрастанию
+                            </option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary">Применить фильтры</button>
+                        <a href="/history" class="btn btn-secondary">Сбросить</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Таблица -->
+        {% if scans %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Дата</th>
+                        <th>Подсеть</th>
+                        <th>Открытые порты</th>
+                        <th>Статус</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for scan in scans %}
+                    <tr>
+                        <td>{{ scan.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ scan.subnet }}</td>
+                        <td>{{ scan.open_ports }}</td>
+                        <td>
+                            <span class="badge {% if scan.status == 'completed' %}bg-success{% else %}bg-warning{% endif %}">
+                                {{ scan.status }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="/scans/{{ scan.id }}" class="btn btn-sm btn-primary">Детали</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Пагинация -->
+        {% if total_pages > 1 %}
+        <nav aria-label="Page navigation" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page - 1 }}{% if request.query_params.get('cidr') %}&cidr={{ request.query_params.get('cidr') }}{% endif %}{% if request.query_params.get('date_from') %}&date_from={{ request.query_params.get('date_from') }}{% endif %}{% if request.query_params.get('date_to') %}&date_to={{ request.query_params.get('date_to') }}{% endif %}{% if request.query_params.get('sort') %}&sort={{ request.query_params.get('sort') }}{% endif %}">
+                        Предыдущая
+                    </a>
+                </li>
+                {% endif %}
+                
+                {% for p in range(1, total_pages + 1) %}
+                <li class="page-item {% if p == page %}active{% endif %}">
+                    <a class="page-link" href="?page={{ p }}{% if request.query_params.get('cidr') %}&cidr={{ request.query_params.get('cidr') }}{% endif %}{% if request.query_params.get('date_from') %}&date_from={{ request.query_params.get('date_from') }}{% endif %}{% if request.query_params.get('date_to') %}&date_to={{ request.query_params.get('date_to') }}{% endif %}{% if request.query_params.get('sort') %}&sort={{ request.query_params.get('sort') }}{% endif %}">
+                        {{ p }}
+                    </a>
+                </li>
+                {% endfor %}
+                
+                {% if has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page + 1 }}{% if request.query_params.get('cidr') %}&cidr={{ request.query_params.get('cidr') }}{% endif %}{% if request.query_params.get('date_from') %}&date_from={{ request.query_params.get('date_from') }}{% endif %}{% if request.query_params.get('date_to') %}&date_to={{ request.query_params.get('date_to') }}{% endif %}{% if request.query_params.get('sort') %}&sort={{ request.query_params.get('sort') }}{% endif %}">
+                        Следующая
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+        
+        {% else %}
+        <div class="alert alert-info">
+            Сканирования не найдены
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %} 
