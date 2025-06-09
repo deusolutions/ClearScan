@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Главная - ClearScan{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1 class="mb-4">Последние сканирования</h1>
+        
+        {% if scans %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Подсеть</th>
+                        <th>Время</th>
+                        <th>Статус</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for scan in scans %}
+                    <tr>
+                        <td>{{ scan.id }}</td>
+                        <td>{{ scan.subnet }}</td>
+                        <td>{{ scan.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        <td>
+                            <span class="badge {% if scan.status == 'completed' %}bg-success{% else %}bg-warning{% endif %}">
+                                {{ scan.status }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="/scans/{{ scan.id }}" class="btn btn-sm btn-primary">Детали</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            Нет данных о сканированиях
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %} 
